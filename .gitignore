@@ -1,0 +1,31 @@
+# Python e ambientes locais
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Logs, configurações locais e credenciais
+logs/
+*.log
+.env
+.env.*
+!.env.example
+.aws/
+.codex/
+
+# Editores e sistema operacional
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
