@@ -1,0 +1,234 @@
+# Tetris Versus — interface
+
+Base funcional do cliente Python para Tetris 1vs1 no terminal: motor local,
+TUI `curses`, treino e sessão simulada em memória. A implementação segue
+[o contexto geral](00-contexto-geral.md) e
+[o boilerplate da interface](01-boilerplate-interface.md).
+
+**Rede ainda não implementada.** Os adaptadores e o protocolo TVP/1 permanecem
+marcados com `TODO[EP-REDE]` e levantam `NotImplementedError`. A simulação usa
+objetos Python e não comprova comunicação de rede para o EP.
+
+## Estado atual — 04/10/2026
+
+- Menu padrão com Prática e Multiplayer, edição do apelido e cabeçalhos com
+  nomes local/remoto implementados; simulação acessível por `--mode simulated`.
+- Atraso de fixação progressivo implementado, com prazo único por peça e
+  pausa que preserva o tempo restante. Durante a espera, a tela mostra 800 ms.
+- Reserva de peça em `C`, giro anti-horário em `Z`, horário em `X`/↑ e
+  180° em `A`. Gerador 7-bag preservado, sem sequência fixa.
+- 56 testes automatizados aprovados nesta revisão, incluindo menu, nomes,
+  fixação, pausa, reserva, giros e fronteiras entre motor, aplicação e sessão.
+- Adaptador TCP, codec TVP/1 e servidor continuam pendentes. A CLI ainda não
+  aceita endereço ou porta do servidor.
+
+## Instalação
+
+Use Python 3.12 ou superior, com a mesma versão menor na equipe, em Linux ou
+Linux/WSL com `curses`. Terminal recomendado: pelo menos 80 colunas × 28 linhas.
+Não há dependências externas de execução; o empacotamento usa setuptools.
+
+```bash
+python3 -c "import curses"
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+Execute na raiz do projeto:
+
+```bash
+python -m tetris_client                         # menu e edição do apelido
+python -m tetris_client --mode local            # treino imediato
+python -m tetris_client --mode simulated --nickname Jogador_A
+python -m tetris_client --mode network          # erro explícito, código 2
+python -m unittest discover -s tests
+```
+
+O comando instalado `tetris_client` aceita os mesmos argumentos. Apelidos
+aceitam de 1 a 20 caracteres ASCII: letras, números e `_`.
+
+Para trabalhar sem instalação do pacote, defina `PYTHONPATH` na raiz e use os
+mesmos comandos com `python3`:
+
+```bash
+export PYTHONPATH="$PWD/src"
+python3 -m tetris_client --mode local
+python3 -m unittest discover -s tests
+```
+
+## Controles e telas
+
+| Tecla | Ação |
+| --- | --- |
+| ← / → | Mover |
+| ↓ | Descer uma linha; ao apoiar, aguardar o prazo de fixação |
+| ↑ / `X` | Girar no sentido horário, sem wall kicks |
+| `Z` | Girar no sentido anti-horário, sem wall kicks |
+| `A` | Girar 180°, validando a posição final |
+| `C` | Guardar/trocar peça; uma vez até a próxima fixação |
+| Espaço | Queda instantânea e fixação |
+| Enter | Confirmar prontidão após o oponente ser informado |
+| `p` | Pausar/retomar somente o treino |
+| `q` | Sair e fechar a sessão |
+
+`C`, `Z`, `X` e `A` também aceitam letras minúsculas.
+No menu, cima/baixo selecionam o modo; digite o apelido, use Backspace para
+editar, Enter para iniciar e Esc para sair.
+
+A execução padrão (`python -m tetris_client`) abre o menu com **Prática** e
+**Multiplayer**. Multiplayer ainda informa indisponibilidade e volta ao menu,
+preservando seu nome. A simulação é uma opção de desenvolvimento pela CLI.
+O nome escolhido aparece acima do seu tabuleiro e é entregue à sessão para o
+futuro HELLO. O nome remoto vem do evento correspondente a MATCH; antes dele,
+o cabeçalho mostra “Aguardando jogador”. Nenhum HELLO real é enviado enquanto
+o adaptador TCP estiver pendente.
+
+O treino começa diretamente e encerra com “Fim do treino”. A simulação mostra
+permanentemente “SIMULAÇÃO LOCAL - SEM REDE”: espera → oponente informado →
+Enter para prontidão → autorização → jogo → resultado. Seu roteiro fornece
+um snapshot fixo do oponente e uma linha de lixo após a quarta fixação local,
+depois a cada cinco fixações. O snapshot inicial também conta no roteiro.
+O oponente demonstrativo não tem física nem inteligência artificial.
+
+Na simulação, `v` injeta vitória durante o jogo, `b` injeta cancelamento e `d`
+injeta desconexão. A derrota local agenda um resultado de derrota no fake;
+até recebê-lo, a aplicação continua consultando a sessão com a física parada.
+Desconexão mostra resultado não confirmado. Nenhuma dessas ações abre rede.
+
+A TUI usa dois caracteres por célula, cores com fallback monocromático e
+tabuleiros lado a lado. O tabuleiro remoto contém apenas blocos fixos. Em
+terminal pequeno aparece um aviso, mas eventos, teclado e física continuam
+processando. `curses.wrapper` restaura o terminal em saída ou exceção; logs
+ficam em `logs/tetris-client.log`.
+
+## Regras implementadas
+
+Tabuleiro 10×20 sem linhas ocultas, sete peças em 7-bag, próxima peça e
+gravidade fixa de 700 ms. Cada giro preserva a matriz quadrada original.
+Ao apoiar, a peça permanece móvel por **800 ms** para permitir ajustes e giros.
+Esse atraso diminui **50 ms a cada 30 segundos de jogo ativo**, até **200 ms**.
+O prazo é definido no primeiro contato de cada peça e não reinicia com
+movimentos, giros ou tentativas de descer. A peça nunca fixa enquanto estiver
+no ar; se voltar ao apoio depois do prazo, fixa na próxima atualização.
+Espaço ainda fixa imediatamente. A pausa do treino congela o prazo e a
+progressão; espera por outro jogador também não conta. A TUI mostra o atraso
+atual em milissegundos.
+
+Cada grupo de sete peças sorteadas contém I, O, T, S, Z, J e L uma vez,
+embaralhadas novamente a cada bag. Duas peças iguais podem se encontrar na
+fronteira entre bags; três iguais consecutivas na sequência sorteada são
+impossíveis. A reserva pode alterar a ordem em que as peças são jogadas.
+
+A reserva aparece na lateral. Quando vazia, `C` guarda a peça ativa e traz
+a próxima; quando ocupada, troca as peças sem consumir a próxima da fila.
+A peça que entra nasce na posição e orientação iniciais, com novos relógios
+de gravidade e apoio. Só é possível guardar/trocar uma vez até a fixação.
+A ação não fixa blocos, pontua, aplica lixo ou envia BOARD quando bem-sucedida.
+Se o nascimento estiver bloqueado, produz snapshot e derrota por SPAWN.
+Espera, pausa e fim do jogo impedem a troca.
+
+Giros horários, anti-horários e de 180° preservam a matriz quadrada e são
+permitidos durante o atraso de fixação, sem reiniciar seu prazo. O giro de
+180° valida apenas o destino, sem exigir espaço para o giro intermediário.
+Não há wall kicks, níveis, combos, pontuação de T-spins ou pontos por queda.
+
+| Linhas limpas | Pontos | Lixo enviado |
+| --- | ---: | ---: |
+| 0 | 0 | 0 |
+| 1 | 100 | 0 |
+| 2 | 300 | 1 |
+| 3 | 500 | 2 |
+| 4 | 800 | 4 |
+
+Lixo recebido espera a fixação da peça. Aplicam-se até quatro linhas por
+fixação; o restante permanece pendente. Cada linha tem nove blocos e um
+buraco escolhido pelo RNG de lixo, independente do gerador de peças. Mais de
+40 linhas pendentes interrompem a sessão, sem produzir KO falso.
+
+Uma fixação limpa linhas, calcula score/ataque, aplica lixo e verifica
+transbordamento ou spawn bloqueado. Publica ataque, snapshot copiado e derrota,
+nessa ordem. Blocos na primeira linha, sozinhos, não causam derrota.
+
+A gravidade usa relógio monotônico injetável e recupera no máximo quatro passos
+por atualização. Atraso excedente é descartado para manter teclado e desenho
+responsivos; o motor não depende da quantidade de redesenhos.
+
+## Árvore de trabalho
+
+```text
+tetris-interface/
+├── 00-contexto-geral.md
+├── 01-boilerplate-interface.md
+├── AGENTS.md                     # Superpowers por padrão e contrato do projeto
+├── README.md
+├── IMPLEMENTATION.md             # pontos de integração para a equipe
+├── .gitignore
+├── pyproject.toml
+├── .superpowers/
+│   ├── LICENSE
+│   ├── README.md
+│   ├── provenance.json
+│   └── skills/                   # 15 skills oficiais, revisão fixada
+├── src/
+│   ├── tetris_client/
+│   │   ├── __init__.py
+│   │   ├── __main__.py           # CLI e seleção de modo
+│   │   ├── engine.py             # domínio puro e ocorrências locais
+│   │   ├── app.py                # estados, motor e porta de sessão
+│   │   ├── ui.py                 # teclado e desenho curses
+│   │   ├── session.py            # porta tipada e FakeSession
+│   │   └── network.py            # TODO[EP-REDE]
+│   └── tetris_shared/
+│       ├── __init__.py
+│       ├── models.py             # snapshots, eventos e oito tipos
+│       ├── rules.py              # constantes e tabelas comuns
+│       └── protocol.py           # TODO[EP-REDE]
+└── tests/
+    ├── __init__.py
+    ├── test_client.py            # motor, aplicação, fake e fronteiras
+    ├── test_menu_and_delay.py    # menu, nomes, prazo de fixação e pausa
+    └── test_hold_and_rotation.py # reserva, giros, teclas e garantias do 7-bag
+```
+
+Os testes não usam terminal, socket, relógio real nem canal externo. Cobrem
+colisão, giro, bags, gravidade, limpeza, score, lixo, top out, isolamento dos
+snapshots, ordem de publicação, prontidão, resultado, cancelamento e falhas.
+Também verificam seleção de modo, edição do apelido, entrega do nome à sessão,
+cabeçalhos dos jogadores, atraso inicial durante a espera, redução do atraso,
+pausa e prazo expirado enquanto a peça está no ar. A tela é substituída por
+um objeto de teste; isso não substitui a validação visual em terminal real.
+
+Verificação desta revisão:
+
+```bash
+.venv/bin/python -m unittest discover -s tests
+# Ran 56 tests — OK
+```
+
+## Próxima etapa: integração da equipe
+
+Veja [IMPLEMENTATION.md](IMPLEMENTATION.md) para a lista de métodos pendentes,
+seus efeitos esperados e os pontos onde nomes e mensagens entram na aplicação.
+
+`NetworkSession` reserva conexão TCP, tradução de eventos, associação à
+conexão, leituras/escritas, fechamento e timers. `protocol.py` reserva encoder,
+parser e framing. Os oito tipos são `HELLO`, `MATCH`, `READY`, `BOARD`,
+`ATTACK`, `KO`, `GAMEOVER` e `KEEPALIVE`; a gramática e as políticas estão no
+contexto geral. Não há comunicação funcional nesta entrega.
+
+Esta frente entrega apenas o cliente e o pacote compartilhado. O executável
+`tetris_server` será desenvolvido na frente do servidor; seu boilerplate não
+foi fornecido aqui. O desenho prevê dois jogadores, um servidor e uma única
+partida por execução. **Uma nova partida real exige reiniciar o servidor e
+os clientes.** Não reutilizar conexão encerrada nem criar gerenciador de salas.
+
+## Workflow dos agentes
+
+Superpowers é o padrão deste projeto via [AGENTS.md](AGENTS.md), usando a cópia
+local em `.superpowers/skills/`. Não precisa ser solicitado a cada tarefa.
+Veja [origem, revisão e descoberta nativa](.superpowers/README.md).
+
+O workflow já está ativo por meio das instruções de `AGENTS.md`. Ele usa
+leitura direta das skills locais, sem exigir instalação global. A descoberta
+nativa opcional é descrita em `.superpowers/README.md`.
