@@ -1,6 +1,12 @@
 # Tetris Versus - contexto geral simplificado
 
-Revisão: 04/10/2026. Uso interno da equipe.
+Revisão: 05/10/2026. Uso interno da equipe.
+
+**Atualização em 05/10/2026:** o cliente contém apenas o esquema de threads e
+filas para a equipe implementar a comunicação. TCP, codec TVP/1, framing e
+temporizadores permanecem stubs `TODO[EP-REDE]`. Consulte
+[IMPLEMENTATION.md](IMPLEMENTATION.md) para os pontos a preencher. O servidor
+continua pendente; as regras e a gramática deste documento permanecem vigentes.
 
 ## 1. Decisões que valem para todo o projeto
 
@@ -13,9 +19,10 @@ gerado. O domínio e os modos locais devem funcionar; a implementação de rede
 permanece marcada com `TODO[EP-REDE]` para a equipe. O desenho inicial do
 protocolo é documentado aqui para orientar esse trabalho.
 
-**Estado deste checkout em 04/10/2026:** o cliente local, o menu, a sessão
-simulada e o pacote compartilhado já estão implementados, com 56 testes
-automatizados aprovados. O servidor ainda não foi criado. Os documentos de
+**Estado deste checkout em 05/10/2026:** o cliente local, o menu, a sessão
+simulada, o pacote compartilhado e a estrutura de threads e filas estão
+implementados, com 74 testes automatizados aprovados. TCP, protocolo e
+temporizadores permanecem pendentes. O servidor ainda não foi criado. Os documentos de
 geração continuam definindo o contrato; [README.md](README.md) descreve a
 execução atual e [IMPLEMENTATION.md](IMPLEMENTATION.md) lista a integração
 pendente.
@@ -47,6 +54,9 @@ O servidor confia nos fatos informados por clientes cooperativos. Validar uma qu
 - Python 3.12 ou superior, com a mesma versão menor na equipe.
 - `curses` para a interface de terminal; validar a disponibilidade no ambiente Linux ou Linux/WSL escolhido.
 - Biblioteca padrão para domínio e testes: `dataclasses`, `enum`, `random`, `time`, `unittest`.
+- Estrutura concorrente do cliente com `threading.Thread`, `threading.Lock`,
+  `threading.Event` e filas `deque` protegidas pelo bloqueio. A thread principal
+  mantém jogo e curses; o laço da thread de rede aguarda os pontos de comunicação.
 - Futuramente, `socket` com TCP e I/O não bloqueante; `selectors` pode ajudar no processamento das duas conexões.
 - Memória para o estado da partida. Sem banco de dados ou framework multiplayer.
 - Um repositório com os executáveis `tetris_client` e `tetris_server` e um pequeno pacote `tetris_shared`.
@@ -219,10 +229,21 @@ Todo resultado é gravado uma única vez antes de notificar. Nenhum encaminhamen
 **Implementado neste checkout:** motor, TUI, menu com edição de apelido,
 nomes acima dos tabuleiros, atraso de fixação progressivo, pausa do treino,
 reserva de peça, giros nos dois sentidos e de 180°, regras comuns, modelos
-tipados, sessão simulada em memória e 56 testes locais.
+tipados, sessão simulada em memória, estrutura concorrente do cliente e 74 testes.
 Durante a espera, o atraso exibido permanece em 800 ms; a contagem começa
 quando a física é autorizada. Testes de desenho usam uma tela substituta;
 validação visual em terminal real permanece uma etapa manual.
+
+**Esquema de threads implementado:** `_start_worker` prepara a thread de rede e
+agenda a intenção HELLO. `_enqueue` e `_publish` trocam objetos tipados com o
+jogo, `poll` consulta eventos e `close` sinaliza parada. As filas têm limite de
+256 itens; o laço processa até 32 intenções por ciclo e aguarda até 20 ms entre
+ciclos. O fechamento aguarda até 200 ms pela thread. `start` continua stub e
+não ativa essa estrutura no modo network antes da implementação pela equipe.
+
+Os testes de concorrência substituem somente os pontos pendentes e não abrem
+sockets. O limite de itens das filas não implementa o limite de bytes do futuro
+transporte, e esses testes não comprovam comunicação TCP.
 
 **Frente do servidor pendente:** controlador da partida única e executável
 `tetris_server`; não há implementação de servidor neste checkout.

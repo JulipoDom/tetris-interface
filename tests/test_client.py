@@ -32,14 +32,14 @@ def engine(clock=None):
 
 
 class EngineTests(unittest.TestCase):
-    # Checks that each bag has seven distinct pieces.
+    # Confere que cada coleção embaralhada tem sete peças distintas.
     def test_each_bag_has_seven_distinct_pieces(self):
         game = engine()
         pieces = [game.next_kind] + [game._draw() for _ in range(20)]
         for start in (0, 7, 14):
             self.assertEqual(set(pieces[start:start + 7]), set(PieceKind))
 
-    # Checks that gravity uses clock and limits catch up.
+    # Confere que a gravidade usa o relógio e limita a recuperação de passos atrasados.
     def test_gravity_uses_clock_and_limits_catch_up(self):
         clock = Clock()
         game = engine(clock)
@@ -56,7 +56,7 @@ class EngineTests(unittest.TestCase):
         game.tick()
         self.assertEqual(game.active.y, 5)
 
-    # Checks that collision and rotation without wall kicks.
+    # Confere a colisão e a rotação sem deslocamentos corretivos.
     def test_collision_and_rotation_without_wall_kicks(self):
         game = engine()
         game.start()
@@ -73,7 +73,7 @@ class EngineTests(unittest.TestCase):
         game.rotate()
         self.assertEqual(game.active, initial)
 
-    # Checks that o does not rotate and i keeps square size.
+    # Confere que a peça O não gira e a peça I mantém o tamanho do quadrado.
     def test_o_does_not_rotate_and_i_keeps_square_size(self):
         game = engine()
         game.start()
@@ -85,7 +85,7 @@ class EngineTests(unittest.TestCase):
         game.rotate()
         self.assertEqual(game.active.cells, ((2, 0), (2, 1), (2, 2), (2, 3)))
 
-    # Checks that score attack and simultaneous clear.
+    # Confere a pontuação, o ataque e a remoção simultânea de linhas.
     def test_score_attack_and_simultaneous_clear(self):
         for count, score, attack in ((1, 100, 0), (2, 300, 1), (3, 500, 2), (4, 800, 4)):
             with self.subTest(count=count):
@@ -101,7 +101,7 @@ class EngineTests(unittest.TestCase):
                 self.assertEqual(attacks, [attack] if attack else [])
                 self.assertFalse(any(all(row) for row in game.board))
 
-    # Checks that garbage waits for lock and preserves remainder.
+    # Confere que o lixo aguarda a fixação e preserva o restante.
     def test_garbage_waits_for_lock_and_preserves_remainder(self):
         game = engine()
         game.start()
@@ -116,7 +116,7 @@ class EngineTests(unittest.TestCase):
             self.assertEqual(row.count(8), 9)
             self.assertEqual(row.count(0), 1)
 
-    # Checks that overflow reports single loss and freezes.
+    # Confere que o transbordamento informa uma única derrota e congela o jogo.
     def test_overflow_reports_single_loss_and_freezes(self):
         game = engine()
         game.start()
@@ -129,7 +129,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(game.soft_drop(), [])
         self.assertEqual(game.tick(), [])
 
-    # Checks that first row alone does not mean loss.
+    # Confere que ocupar apenas a primeira linha não significa derrota.
     def test_first_row_alone_does_not_mean_loss(self):
         game = engine()
         game.board[0][0] = 8
@@ -137,7 +137,7 @@ class EngineTests(unittest.TestCase):
         self.assertIsNone(game.loss)
         self.assertTrue(game.running)
 
-    # Checks that spawn blocked.
+    # Confere a derrota por nascimento bloqueado.
     def test_spawn_blocked(self):
         game = engine()
         game.next_kind = PieceKind.O
@@ -145,7 +145,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(game.start()[-1], LocalDefeat(LossReason.SPAWN))
         self.assertEqual(game.start(), [])
 
-    # Checks that attack snapshot loss order.
+    # Confere a ordem de ataque, retrato do tabuleiro e derrota.
     def test_attack_snapshot_loss_order(self):
         game = engine()
         game.start()
@@ -160,7 +160,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(events[0].amount, 1)
         self.assertEqual(events[-1].reason, LossReason.OVERFLOW)
 
-    # Checks that snapshot is detached and does not include active piece.
+    # Confere que o retrato do tabuleiro é uma cópia independente e não inclui a peça ativa.
     def test_snapshot_is_detached_and_does_not_include_active_piece(self):
         game = engine()
         game.start()
@@ -171,7 +171,7 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             snapshot.cells[0][0] = 1
 
-    # Checks that pending limit is failure not defeat.
+    # Confere que exceder o limite pendente é uma falha de sessão, não uma derrota.
     def test_pending_limit_is_failure_not_defeat(self):
         game = engine()
         game.start()
@@ -182,7 +182,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(game.pending_garbage, 40)
         self.assertIsNone(game.loss)
 
-    # Checks that new engine resets score and garbage.
+    # Confere que um novo motor reinicia a pontuação e o lixo.
     def test_new_engine_resets_score_and_garbage(self):
         first = engine()
         first.score = 800
@@ -209,7 +209,7 @@ class AppTests(unittest.TestCase):
         app.update()
         return app, fake
 
-    # Checks that readiness does not start physics.
+    # Confere que a prontidão não inicia a física.
     def test_readiness_does_not_start_physics(self):
         app, fake = self.make_app()
         self.assertEqual(app.state, State.WAITING)
@@ -228,7 +228,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(app.state, State.PLAYING)
         self.assertIsInstance(fake.outgoing[-1], BoardOffered)
 
-    # Checks that remote inputs are not echoed.
+    # Confere que as entradas remotas não são retransmitidas.
     def test_remote_inputs_are_not_echoed(self):
         app, fake = self.playing()
         before = len(fake.outgoing)
@@ -239,7 +239,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(app.engine.pending_garbage, 2)
         self.assertEqual(len(fake.outgoing), before)
 
-    # Checks that ko waits for result and keeps polling.
+    # Confere que a derrota aguarda o resultado e mantém as consultas à sessão.
     def test_ko_waits_for_result_and_keeps_polling(self):
         app, fake = self.playing()
         app.engine.board[0][0] = 8
@@ -252,7 +252,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(app.state, State.FINISHED)
         self.assertEqual(app.result.result, Result.LOSE)
 
-    # Checks that result stops alive engine and discards later events.
+    # Confere que o resultado para o motor ativo e descarta os eventos posteriores.
     def test_result_stops_alive_engine_and_discards_later_events(self):
         app, fake = self.playing()
         fake.inject(MatchResult(Result.WIN, EndReason.KO), AttackReceived(4))
@@ -261,7 +261,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(app.engine.pending_garbage, 0)
         self.assertTrue(fake.closed)
 
-    # Checks that cancel before start.
+    # Confere o cancelamento antes do início.
     def test_cancel_before_start(self):
         app, fake = self.make_app()
         fake.simulate_cancel()
@@ -269,7 +269,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual(app.result.result, Result.CANCEL)
         self.assertEqual(app.state, State.FINISHED)
 
-    # Checks that disconnect has no invented result.
+    # Confere que a desconexão não produz um resultado inventado.
     def test_disconnect_has_no_invented_result(self):
         app, fake = self.playing()
         fake.simulate_disconnect()
@@ -278,7 +278,7 @@ class AppTests(unittest.TestCase):
         self.assertIsNone(app.result)
         self.assertIn("resultado não confirmado", app.notice)
 
-    # Checks that garbage limit closes session without ko.
+    # Confere que o limite de lixo fecha a sessão sem informar derrota.
     def test_garbage_limit_closes_session_without_ko(self):
         app, fake = self.playing()
         for _ in range(10):
@@ -290,7 +290,7 @@ class AppTests(unittest.TestCase):
         self.assertIsNone(app.engine.loss)
         self.assertFalse(any(isinstance(e, DefeatOffered) for e in fake.outgoing))
 
-    # Checks that app preserves attack board ko order.
+    # Confere que a aplicação preserva a ordem de ataque, tabuleiro e derrota.
     def test_app_preserves_attack_board_ko_order(self):
         app, fake = self.playing()
         game = app.engine
@@ -304,7 +304,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual([type(e) for e in fake.outgoing[-3:]],
                          [AttackOffered, BoardOffered, DefeatOffered])
 
-    # Checks that pause is only local and resets clock.
+    # Confere que a pausa é apenas local e reinicia o relógio.
     def test_pause_is_only_local_and_resets_clock(self):
         clock = Clock()
         app = App("local", "Treino", engine=engine(clock))
@@ -320,7 +320,7 @@ class AppTests(unittest.TestCase):
         simulated.action("pause")
         self.assertFalse(simulated.paused)
 
-    # Checks that demo runs wait match ready go board attack result.
+    # Confere que a demonstração executa espera, partida, prontidão, início, tabuleiro, ataque e resultado.
     def test_demo_runs_wait_match_ready_go_board_attack_result(self):
         fake = FakeSession(demo=True)
         app = App("simulated", "Demo", engine=engine(), session=fake)
@@ -346,23 +346,25 @@ class AppTests(unittest.TestCase):
 
 
 class BoundaryTests(unittest.TestCase):
-    # Checks that exactly eight message types.
+    # Confere que existem exatamente oito tipos de mensagem.
     def test_exactly_eight_message_types(self):
         self.assertEqual(len(MessageType), 8)
 
-    # Checks that protocol and network are explicit stubs.
-    def test_protocol_and_network_are_explicit_stubs(self):
-        calls = [lambda: protocol.encode(MessageType.KEEPALIVE, ()),
-                 lambda: protocol.parse(b"TVP/1|KEEPALIVE\n"),
-                 lambda: protocol.Framer().feed(b"data"),
-                 lambda: NetworkSession().start("Jogador"),
-                 lambda: NetworkSession().poll(),
-                 lambda: NetworkSession().close()]
-        for call in calls:
+    def test_network_and_protocol_are_pending_without_fake_fallback(self):
+        for call in (lambda: protocol.encode(MessageType.KEEPALIVE, ()),
+                     lambda: protocol.parse(b"TVP/1|KEEPALIVE\n"),
+                     lambda: protocol.Framer().feed(b"data")):
             with self.assertRaisesRegex(NotImplementedError, r"TODO\[EP-REDE\]"):
                 call()
+        session = NetworkSession()
+        with self.assertRaisesRegex(NotImplementedError, r"TODO\[EP-REDE\]"):
+            session.start("Ana")
+        self.assertIsNone(session._thread)
+        self.assertEqual(session.poll(), [])
+        session.close()
+        session.close()
 
-    # Checks that nickname and snapshot validation.
+    # Confere a validação do apelido e do retrato do tabuleiro.
     def test_nickname_and_snapshot_validation(self):
         for nickname in ("", "nome com espaço", "á", "x" * 21):
             with self.assertRaises(ValueError):

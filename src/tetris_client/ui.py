@@ -1,4 +1,4 @@
-"""Toda chamada curses ocorre no fluxo principal e dentro de wrapper."""
+"""Toda chamada curses ocorre no fluxo principal e dentro da função curses.wrapper."""
 
 import curses
 import logging
@@ -7,7 +7,7 @@ from tetris_shared.models import EndReason, MatchResult, Result
 from tetris_shared.rules import MIN_TERMINAL_HEIGHT, MIN_TERMINAL_WIDTH
 from .app import App, State
 from .engine import SHAPES
-from .network import NetworkSession
+from .network import DEFAULT_HOST, DEFAULT_PORT, NetworkSession
 from .session import FakeSession, validate_nickname
 
 
@@ -18,7 +18,7 @@ def _text(screen, y: int, x: int, text: str, attr: int = 0) -> None:
         try:
             screen.addnstr(y, x, text, width - x - 1, attr)
         except curses.error:
-            # Resize may race with a draw. The next frame uses the new size.
+            # O redimensionamento pode coincidir com o desenho. O próximo quadro usa o novo tamanho.
             pass
 
 
@@ -117,7 +117,7 @@ def _render(screen, app: App, palette: dict[int, int]) -> None:
     screen.refresh()
 
 
-# Permite escolher prática ou multiplayer e editar o apelido.
+# Permite escolher treino ou modo multijogador e editar o apelido.
 def _menu(screen, initial_nickname: str, error: str = "") -> tuple[str, str] | None:
     nickname = initial_nickname
     mode_index = 0
@@ -130,7 +130,7 @@ def _menu(screen, initial_nickname: str, error: str = "") -> tuple[str, str] | N
         for i, label in enumerate(labels):
             _text(screen, 5 + i, 2, ("> " if i == mode_index else "  ") + label)
         _text(screen, 10, 2, f"Apelido: {nickname}")
-        _text(screen, 11, 2, "Multiplayer: indisponível até a integração de rede.")
+        _text(screen, 11, 2, "Multiplayer: indisponível até a implementação da rede.")
         _text(screen, 12, 2, error)
         screen.refresh()
         key = screen.getch()
@@ -155,7 +155,8 @@ def _menu(screen, initial_nickname: str, error: str = "") -> tuple[str, str] | N
 
 
 # Coordena menu, entrada de teclado e atualizações no mesmo fluxo.
-def _run(screen, mode: str | None, nickname: str) -> None:
+def _run(screen, mode: str | None, nickname: str, *,
+         host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     try:
         curses.curs_set(0)
     except curses.error:
@@ -172,14 +173,15 @@ def _run(screen, mode: str | None, nickname: str) -> None:
                 return
             mode, nickname = choice
         session = (FakeSession(demo=True) if mode == "simulated" else
-                   NetworkSession() if mode == "network" else None)
+                   NetworkSession(host, port) if mode == "network" else None)
         app = App(mode, nickname, session=session)
         try:
             app.start()
-        except NotImplementedError:
-            if not from_menu:
+        except Exception as exc:
+            app.close()
+            if not isinstance(exc, NotImplementedError) or not from_menu:
                 raise
-            menu_error = "Multiplayer indisponível: comunicação ainda não implementada."
+            menu_error = "Multiplayer indisponível: implemente os pontos TODO[EP-REDE]."
             continue
         break
     keys = {curses.KEY_LEFT: "left", curses.KEY_RIGHT: "right",
@@ -211,9 +213,10 @@ def _run(screen, mode: str | None, nickname: str) -> None:
 
 
 # Executa a interface restaurando o terminal mesmo quando ocorre erro.
-def run(mode: str | None, nickname: str) -> None:
+def run(mode: str | None, nickname: str, *,
+        host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> None:
     try:
-        curses.wrapper(_run, mode, nickname)
+        curses.wrapper(_run, mode, nickname, host=host, port=port)
     except Exception:
         logging.exception("Falha no cliente")
         raise

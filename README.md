@@ -5,11 +5,12 @@ TUI `curses`, treino e sessão simulada em memória. A implementação segue
 [o contexto geral](00-contexto-geral.md) e
 [o boilerplate da interface](01-boilerplate-interface.md).
 
-**Rede ainda não implementada.** Os adaptadores e o protocolo TVP/1 permanecem
-marcados com `TODO[EP-REDE]` e levantam `NotImplementedError`. A simulação usa
-objetos Python e não comprova comunicação de rede para o EP.
+**Comunicação TCP pendente para implementação pela equipe.** O cliente contém
+o esquema de uma thread de rede com filas e sinal de parada. Conexão, envio,
+recepção, codec e temporizadores são stubs `TODO[EP-REDE]` que levantam
+`NotImplementedError`. Este checkout também não contém `tetris_server`.
 
-## Estado atual — 04/10/2026
+## Estado atual — 05/10/2026
 
 - Menu padrão com Prática e Multiplayer, edição do apelido e cabeçalhos com
   nomes local/remoto implementados; simulação acessível por `--mode simulated`.
@@ -17,10 +18,15 @@ objetos Python e não comprova comunicação de rede para o EP.
   pausa que preserva o tempo restante. Durante a espera, a tela mostra 800 ms.
 - Reserva de peça em `C`, giro anti-horário em `Z`, horário em `X`/↑ e
   180° em `A`. Gerador 7-bag preservado, sem sequência fixa.
-- 56 testes automatizados aprovados nesta revisão, incluindo menu, nomes,
-  fixação, pausa, reserva, giros e fronteiras entre motor, aplicação e sessão.
-- Adaptador TCP, codec TVP/1 e servidor continuam pendentes. A CLI ainda não
-  aceita endereço ou porta do servidor.
+- Testes de motor, interface, stubs e estrutura concorrente, sem sockets.
+- Estrutura de thread de rede, filas de intenções/eventos e fechamento implementada.
+  TCP, codec TVP/1, validação de estados e temporizadores ficam para a equipe.
+- `--host` e `--port` guardam o destino da futura conexão; não abrem rede nesta etapa.
+- Comentários e docstrings do código próprio em português; 74 testes aprovados.
+
+O auxiliar `_start_worker` está preparado, mas `start` continua stub. A thread
+de rede só será habilitada no modo network quando você implementar os pontos
+de comunicação descritos em [IMPLEMENTATION.md](IMPLEMENTATION.md).
 
 ## Instalação
 
@@ -41,7 +47,7 @@ Execute na raiz do projeto:
 python -m tetris_client                         # menu e edição do apelido
 python -m tetris_client --mode local            # treino imediato
 python -m tetris_client --mode simulated --nickname Jogador_A
-python -m tetris_client --mode network          # erro explícito, código 2
+python -m tetris_client --mode network --host 127.0.0.1 --port 8765 # rede pendente
 python -m unittest discover -s tests
 ```
 
@@ -77,12 +83,13 @@ No menu, cima/baixo selecionam o modo; digite o apelido, use Backspace para
 editar, Enter para iniciar e Esc para sair.
 
 A execução padrão (`python -m tetris_client`) abre o menu com **Prática** e
-**Multiplayer**. Multiplayer ainda informa indisponibilidade e volta ao menu,
-preservando seu nome. A simulação é uma opção de desenvolvimento pela CLI.
-O nome escolhido aparece acima do seu tabuleiro e é entregue à sessão para o
-futuro HELLO. O nome remoto vem do evento correspondente a MATCH; antes dele,
-o cabeçalho mostra “Aguardando jogador”. Nenhum HELLO real é enviado enquanto
-o adaptador TCP estiver pendente.
+**Multiplayer**. Enquanto a rede estiver pendente, Multiplayer informa
+indisponibilidade e retorna ao menu, preservando o apelido. O modo explícito
+`--mode network` informa o TODO e encerra com código 2 em terminal interativo.
+`--host` e `--port` configuram o destino futuro (padrão: `127.0.0.1:8765`).
+O nome escolhido aparece acima do seu tabuleiro e será enviado em HELLO após
+a implementação. A simulação continua explícita pela CLI, sem comunicação real.
+O modo network nunca usa a sessão simulada automaticamente.
 
 O treino começa diretamente e encerra com “Fim do treino”. A simulação mostra
 permanentemente “SIMULAÇÃO LOCAL - SEM REDE”: espera → oponente informado →
@@ -178,20 +185,25 @@ tetris-interface/
 │   │   ├── app.py                # estados, motor e porta de sessão
 │   │   ├── ui.py                 # teclado e desenho curses
 │   │   ├── session.py            # porta tipada e FakeSession
-│   │   └── network.py            # TODO[EP-REDE]
+│   │   └── network.py            # estrutura de thread; TCP pendente
 │   └── tetris_shared/
 │       ├── __init__.py
 │       ├── models.py             # snapshots, eventos e oito tipos
 │       ├── rules.py              # constantes e tabelas comuns
-│       └── protocol.py           # TODO[EP-REDE]
+│       └── protocol.py           # TODO[EP-REDE]: codec e framing
 └── tests/
     ├── __init__.py
     ├── test_client.py            # motor, aplicação, fake e fronteiras
     ├── test_menu_and_delay.py    # menu, nomes, prazo de fixação e pausa
-    └── test_hold_and_rotation.py # reserva, giros, teclas e garantias do 7-bag
+    ├── test_hold_and_rotation.py # reserva, giros, teclas e garantias do 7-bag
+    ├── test_protocol.py          # stubs de codec e framing
+    ├── test_network.py           # estrutura de thread, filas e parada
+    └── test_network_entrypoints.py # CLI e menu multiplayer
 ```
 
-Os testes não usam terminal, socket, relógio real nem canal externo. Cobrem
+Os testes usam relógios injetáveis e uma tela substituta. A estrutura concorrente
+é testada com uma subclasse que substitui somente os pontos pendentes, sem
+sockets ou serialização. Esses testes não comprovam comunicação TCP. Cobrem
 colisão, giro, bags, gravidade, limpeza, score, lixo, top out, isolamento dos
 snapshots, ordem de publicação, prontidão, resultado, cancelamento e falhas.
 Também verificam seleção de modo, edição do apelido, entrega do nome à sessão,
@@ -203,19 +215,18 @@ Verificação desta revisão:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests
-# Ran 56 tests — OK
+# 74 testes — OK, sem testes ignorados.
 ```
 
 ## Próxima etapa: integração da equipe
 
-Veja [IMPLEMENTATION.md](IMPLEMENTATION.md) para a lista de métodos pendentes,
-seus efeitos esperados e os pontos onde nomes e mensagens entram na aplicação.
+Veja [IMPLEMENTATION.md](IMPLEMENTATION.md) para o funcionamento das threads,
+os pontos de integração e a frente de servidor pendente.
 
-`NetworkSession` reserva conexão TCP, tradução de eventos, associação à
-conexão, leituras/escritas, fechamento e timers. `protocol.py` reserva encoder,
-parser e framing. Os oito tipos são `HELLO`, `MATCH`, `READY`, `BOARD`,
-`ATTACK`, `KO`, `GAMEOVER` e `KEEPALIVE`; a gramática e as políticas estão no
-contexto geral. Não há comunicação funcional nesta entrega.
+`NetworkSession` fornece thread, filas, consulta de eventos e sinal de parada.
+Seus pontos de conexão TCP, envio/recepção, tradução e timers continuam TODO.
+`protocol.py` contém stubs de encoder, parser e framing. Os oito tipos são
+`HELLO`, `MATCH`, `READY`, `BOARD`, `ATTACK`, `KO`, `GAMEOVER` e `KEEPALIVE`.
 
 Esta frente entrega apenas o cliente e o pacote compartilhado. O executável
 `tetris_server` será desenvolvido na frente do servidor; seu boilerplate não

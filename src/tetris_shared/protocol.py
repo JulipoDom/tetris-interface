@@ -1,22 +1,23 @@
-"""TVP/1 reservado para a equipe; catálogo em models.MessageType.
+"""Pontos de implementação da codificação e delimitação TVP/1 para a equipe.
 
-Sem codec funcional nesta etapa. Especificação: 00-contexto-geral.md, seção 7.
+A gramática está em 00-contexto-geral.md, seção 7. Nenhuma mensagem é
+serializada, interpretada ou delimitada nesta etapa.
 """
 
 from .models import MessageType
 
 
-# Pendente: validar os campos e gerar uma mensagem ASCII terminada em LF.
+# Validar os campos e produzir ASCII com prefixo TVP/1 e LF final.
 def encode(message_type: MessageType, fields: tuple[str, ...]) -> bytes:
     raise NotImplementedError("TODO[EP-REDE]: validar e serializar TVP/1 em ASCII")
 
 
-# Pendente: validar uma linha TVP/1 e retornar seu tipo e campos.
+# Validar uma linha e devolver tipo e campos; direção/estado ficam no adaptador.
 def parse(line: bytes) -> tuple[MessageType, tuple[str, ...]]:
-    raise NotImplementedError("TODO[EP-REDE]: validar sintaxe, campos e direção")
+    raise NotImplementedError("TODO[EP-REDE]: validar sintaxe e campos TVP/1")
 
 
 class Framer:
-    # Pendente: separar linhas completas e preservar o fragmento TCP restante.
+    # Acumular fragmentos, separar todas as linhas LF e limitar cada linha a 512 bytes.
     def feed(self, data: bytes) -> list[bytes]:
         raise NotImplementedError("TODO[EP-REDE]: acumular bytes, separar LF e limitar linhas")

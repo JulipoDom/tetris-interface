@@ -1,4 +1,4 @@
-"""Defaults definidos em 00-contexto-geral.md."""
+"""Valores padrão definidos em 00-contexto-geral.md."""
 
 WIDTH = 10
 HEIGHT = 20

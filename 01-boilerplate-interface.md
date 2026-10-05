@@ -1,5 +1,10 @@
 # Boilerplate da interface - dois jogadores
 
+**Atualização em 05/10/2026:** foi acrescentado somente o esquema de threads,
+filas e parada do cliente. Os requisitos de stubs continuam válidos para TCP,
+codec, framing e temporizadores. Consulte [IMPLEMENTATION.md](IMPLEMENTATION.md)
+para os pontos a preencher; o servidor também continua pendente.
+
 ## 1. Instrução para gerar o código
 
 Ler junto de `00-contexto-geral.md`, a fonte única das regras e do protocolo inicial. Criar um cliente Python com TUI `curses`, motor local completo e sessão simulada em memória. Existem apenas o jogador local e um oponente.
@@ -8,10 +13,10 @@ Implementar o produto local. **Não implementar a comunicação nesta etapa:** s
 
 Os comandos e caminhos abaixo descrevem o código a gerar; os Markdown não são o código do boilerplate.
 
-**Estado em 04/10/2026:** o código do cliente descrito aqui já existe neste
-checkout. Menu, nomes, fixação progressiva e pausa estão implementados.
-A suíte local tem 56 testes aprovados, incluindo reserva e novos giros;
-rede e servidor continuam pendentes.
+**Estado em 05/10/2026:** o código do cliente descrito aqui já existe neste
+checkout. Menu, nomes, fixação progressiva, pausa e estrutura concorrente estão
+implementados. A suíte tem 74 testes aprovados, incluindo reserva, giros,
+stubs e estrutura de threads; comunicação real e servidor continuam pendentes.
 Consultar [README.md](README.md) para executar e
 [IMPLEMENTATION.md](IMPLEMENTATION.md) para integrar o adaptador real.
 
@@ -24,13 +29,16 @@ Consultar [README.md](README.md) para executar e
 | `src/tetris_client/ui.py` | Entrada de teclado e renderização do terminal. |
 | `src/tetris_client/app.py` | Coordenar telas, motor e porta de sessão. |
 | `src/tetris_client/session.py` | Porta tipada e FakeSession sem rede. |
-| `src/tetris_client/network.py` | Stub do adaptador real do cliente. |
+| `src/tetris_client/network.py` | Esquema de thread, filas e parada; comunicação em stubs. |
 | `src/tetris_shared/models.py` | Tipos internos, cópias do tabuleiro e enum dos oito tipos. |
 | `src/tetris_shared/rules.py` | Constantes e tabela de score/ataque do contexto geral. |
 | `src/tetris_shared/protocol.py` | Stubs de encoder, parser e framing. |
 | `tests/test_client.py` | Testes do motor e da aplicação com fake. |
 | `tests/test_menu_and_delay.py` | Testes do menu, nomes, atraso de fixação e pausa. |
 | `tests/test_hold_and_rotation.py` | Reserva, giros, controles e garantias do 7-bag. |
+| `tests/test_network.py` | Threads, ordem das filas, limites, falhas e parada, sem sockets. |
+| `tests/test_protocol.py` | Confirmação de stubs do encoder, parser e framing. |
+| `tests/test_network_entrypoints.py` | Endereço/porta e aviso de rede pendente na CLI/menu. |
 
 Não criar catálogo de salas, seleção de partida, fila de matchmaking ou IDs de partida. Criar o pacote compartilhado uma vez no repositório, não duplicá-lo em cada frente.
 
@@ -116,11 +124,19 @@ Só iniciar a física após o evento de autorização. Ataque recebido aumenta o
 
 No treino, ataques gerados não precisam de oponente. No fake, registrar saídas e injetar entradas determinísticas: espera, MATCH conceitual, autorização, ataque, snapshot e resultado. Simular também conexão perdida e cancelamento. Não abrir socket, gravar canal em arquivo nem esconder comunicação dentro do mock.
 
-## 6. Stubs a preservar
+## 6. Estrutura de threads e stubs a preservar
 
-- `network.py`: conexão, tradução da porta, HELLO, timers e KEEPALIVE, leitura/escrita e fechamento.
+- `network.py` já fornece `_start_worker`, `_enqueue`, `_publish`, `poll`, `close`
+  e o laço `_run`. O jogo e todas as chamadas curses permanecem na thread principal.
+- `start`, `ready`, `offer_board`, `attack` e `defeat` continuam stubs. A equipe
+  deve validar os estados e ligar essas entradas aos auxiliares das filas.
+- `_connect`, `_send`, `_receive_events`, `_process_timers` e `_close_connection`
+  continuam stubs de comunicação, chamados pela futura thread de rede.
 - `tetris_shared/protocol.py`: representar, delimitar e validar os oito tipos descritos no contexto.
 - Métodos pendentes levantam `NotImplementedError` com `TODO[EP-REDE]`.
+- O `close` já implementado somente controla a thread. Liberar socket e buffers
+  pertence ao ponto pendente `_close_connection`, executado no `finally` do laço.
+- `--host` e `--port` configuram o destino futuro; ainda não estabelecem conexão.
 - O comando de rede encerra com código não zero e explica que falta implementar o adaptador. Nunca iniciar fake automaticamente.
 
 Modos esperados depois da geração:
@@ -134,7 +150,7 @@ python -m unittest discover -s tests
 
 ## 7. Aceite do boilerplate
 
-Estado conferido por testes automatizados em 04/10/2026. A jogabilidade
+Estado conferido por testes automatizados em 05/10/2026. A jogabilidade
 visual/interativa em terminal real ainda precisa de aceite manual.
 
 - [ ] Treino jogável: colisão, rotação, queda, fixação e limpeza corretas.
@@ -153,8 +169,12 @@ visual/interativa em terminal real ainda precisa de aceite manual.
 - [x] Reserva em C permite uma troca por fixação e mostra a peça guardada.
 - [x] Z/X/A giram nos dois sentidos e 180°, respeitando colisão e prazo.
 - [x] Cada bag contém todas as sete peças; sorteios não têm três iguais seguidas.
+- [x] Estrutura concorrente preserva ordem das intenções e mantém o jogo separado.
+- [x] Consulta de eventos e parada não esperam por uma operação de rede bloqueada.
+- [x] Pontos de TCP, codec, framing e temporizadores continuam pendentes.
+- [x] Comentários e docstrings do código próprio estão em português.
 
-Verificação: `.venv/bin/python -m unittest discover -s tests` — 56 testes,
+Verificação: `.venv/bin/python -m unittest discover -s tests` — 74 testes,
 `OK`. Sem instalação: `PYTHONPATH=src python3 -m unittest discover -s tests`.
 
 O README deve explicar instalação, controles e o fato de que uma nova partida real exige reiniciar o servidor. Não adicionar funções fora desse escopo.

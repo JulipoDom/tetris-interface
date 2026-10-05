@@ -28,7 +28,7 @@ SHAPES = {
 
 
 class GarbageLimitError(RuntimeError):
-    """Falha de sessão local, nunca um KO do jogo."""
+    """Falha de sessão local, nunca uma derrota do jogo."""
 
 
 @dataclass(frozen=True)
@@ -172,7 +172,7 @@ class Engine:
             events.append(LocalDefeat(self.loss))
         return events
 
-    # Interrompe a física sem produzir um resultado multiplayer.
+    # Interrompe a física sem produzir um resultado multijogador.
     def stop(self) -> None:
         self.running = False
 
@@ -197,7 +197,7 @@ class Engine:
                 self.active = candidate
                 self._touch_ground()
 
-    # Gira em quartos de volta e valida apenas a posição final, sem wall kicks.
+    # Gira em quartos de volta e valida apenas a posição final, sem deslocamentos corretivos.
     def rotate(self, turns: int = 1) -> None:
         if (not self.running or self._paused_at is not None or self.active is None
                 or self.active.kind == PieceKind.O):
@@ -250,7 +250,7 @@ class Engine:
             events.extend(self.soft_drop())
             if not self.running:
                 break
-        # Discard excess backlog so input/rendering never starves.
+        # Descarta o atraso acumulado excedente para manter a entrada e o desenho responsivos.
         if steps > MAX_CATCH_UP_STEPS:
             self._last_tick = now
         return events

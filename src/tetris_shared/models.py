@@ -50,7 +50,7 @@ class BoardSnapshot:
 
     # Valida o tamanho e as células, copiando os dados recebidos.
     def __post_init__(self) -> None:
-        # Always detach from caller-owned lists, including rows.
+        # Sempre copia as listas de quem chamou, incluindo as linhas.
         rows = tuple(tuple(row) for row in self.cells)
         if len(rows) != HEIGHT or any(len(row) != WIDTH for row in rows):
             raise ValueError("O tabuleiro deve ter 10 colunas e 20 linhas")

@@ -3,28 +3,25 @@ import logging
 from pathlib import Path
 import sys
 
-from .network import NetworkSession
+from .network import DEFAULT_HOST, DEFAULT_PORT
 from .session import validate_nickname
 
 
 # Lê argumentos, abre o menu padrão e informa falhas de execução.
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Tetris Versus: treino e simulação local")
+    parser = argparse.ArgumentParser(description="Tetris Versus: treino e simulação; rede pendente")
     parser.add_argument("--mode", choices=("local", "simulated", "network"),
                         help="Sem este argumento, exibir menu")
     parser.add_argument("--nickname", default="Jogador", help="Apelido ASCII de 1 a 20 caracteres")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="Endereço do servidor TCP")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Porta do servidor TCP")
     args = parser.parse_args()
     try:
         validate_nickname(args.nickname)
     except ValueError as exc:
         parser.error(str(exc))
-    # Fail before touching the terminal; network never falls back to simulation.
-    if args.mode == "network":
-        try:
-            NetworkSession().start(args.nickname)
-        except NotImplementedError as exc:
-            print(str(exc), file=sys.stderr)
-            return 2
+    if not args.host or not 1 <= args.port <= 65535:
+        parser.error("Servidor exige endereço e porta entre 1 e 65535")
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print("A interface requer um terminal interativo (Linux/WSL).", file=sys.stderr)
         return 1
@@ -33,7 +30,7 @@ def main() -> int:
                         format="%(asctime)s %(levelname)s %(message)s")
     try:
         from .ui import run
-        run(args.mode, args.nickname)
+        run(args.mode, args.nickname, host=args.host, port=args.port)
     except NotImplementedError as exc:
         print(str(exc), file=sys.stderr)
         return 2

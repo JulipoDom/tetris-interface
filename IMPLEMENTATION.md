@@ -1,147 +1,113 @@
-# Código que a equipe precisa implementar
+# Esquema de threads para implementar a comunicação
 
-O motor, menu, controles, nomes e fluxo da aplicação já têm implementação
-local. O trabalho pendente é a comunicação real e o servidor. Todos os métodos
-abaixo continuam levantando `NotImplementedError` com `TODO[EP-REDE]`.
+Atualização: 05/10/2026. A comunicação real fica para implementação pela equipe.
+O código atual não conecta sockets, não envia bytes, não interpreta mensagens
+e não executa KEEPALIVE ou timeout de rede. Esses pontos levantam
+`NotImplementedError` com o marcador `TODO[EP-REDE]`.
 
-Revisão de estado: **04/10/2026**. A suíte local tem **56 testes aprovados**.
-O menu oferece Prática e Multiplayer; a simulação permanece na CLI. O atraso
-de fixação vai de 800 a 200 ms, reduzindo 50 ms a cada 30 segundos ativos,
-sem reiniciar o prazo por movimento ou giro. A espera mantém o atraso inicial
-e a pausa do treino preserva o prazo restante.
+## O que está pronto
 
-A reserva usa `C` uma vez por fixação; `Z` gira anti-horário, `X`/↑ horário
-e `A` gira 180°. O 7-bag continua embaralhando as sete peças de cada grupo.
-Essas ações são locais e não acrescentam tipos ao protocolo: a reserva não
-trafega em BOARD. Uma troca com spawn bloqueado publica BOARD → KO/SPAWN;
-uma troca válida não publica eventos nem aplica lixo pendente.
+A thread principal executa teclado, `App.update()`, física do `Engine` e desenho
+com curses. A futura thread `tetris-network` possui filas protegidas por
+`threading.Lock`, um `threading.Event` para parada e um laço de processamento.
+O jogo não compartilha seu tabuleiro mutável com a thread de rede.
 
-## 1. Protocolo — `src/tetris_shared/protocol.py`
-
-| Método | O que implementar |
-| --- | --- |
-| `encode(message_type, fields)` | Validar campos e produzir ASCII com prefixo `TVP/1`, separadores `\|` e LF final. |
-| `parse(line)` | Validar prefixo, tokens e campos; devolver `MessageType` e campos. Validar direção e estado também no adaptador/controlador. |
-| `Framer.feed(data)` | Acumular bytes por conexão, extrair todas as linhas completas, preservar o fragmento restante e recusar linha maior que 512 bytes, incluindo LF. |
-
-Usar os oito tipos de `models.MessageType`, sem mensagens adicionais. BOARD
-contém 200 dígitos de blocos fixos, linha por linha, sem a peça ativa. Um
-`recv()` pode entregar parte de uma mensagem ou várias mensagens juntas.
-A gramática completa está na seção 7 de [00-contexto-geral.md](00-contexto-geral.md).
-
-## 2. Adaptador cliente — `src/tetris_client/network.py`
-
-| Método | Responsabilidade |
-| --- | --- |
-| `NetworkSession.start(nickname)` | Conectar ao servidor TCP e enviar **HELLO com esse apelido**. Preparar buffers, relógios monotônicos e estado da conexão. |
-| `ready()` | Enviar READY com PLAYER; não iniciar a física local. |
-| `offer_board(board)` | Enviar BOARD dos blocos fixos, com cópia independente. |
-| `attack(amount)` | Enviar ATTACK com 1, 2 ou 4 linhas de lixo. |
-| `defeat(reason)` | Enviar KO com SPAWN ou OVERFLOW; continuar conectado esperando GAMEOVER. |
-| `poll()` | Processar I/O sem bloquear, preservar escritas parciais, alimentar framing/parser e devolver eventos tipados. |
-| `close()` | Fechar a conexão e liberar buffers; suportar fechamento repetido. Não enviar uma mensagem extra de saída. |
-
-`poll()` também agenda KEEPALIVE a cada 5 segundos após HELLO e detecta 15
-segundos sem mensagem completa e válida. KEEPALIVE não deve ser ecoado.
-Respeitar o limite de saída de 4096 bytes; não descartar ataques silenciosamente.
-O futuro adaptador também precisa definir como receber endereço/porta do
-servidor: ainda não há configuração de endereço na CLI nem no menu.
-
-## 3. Integração dos nomes e eventos
-
-O caminho do nome local está pronto:
-
-```text
-ui._menu → App.nickname → App.start → NetworkSession.start(nickname) → HELLO
+```mermaid
+flowchart LR
+    M[Thread principal: jogo e terminal] -->|intenções imutáveis| O[Fila de saída]
+    O --> W[Thread tetris-network]
+    W -->|eventos tipados| I[Fila de entrada]
+    I -->|poll em App.update| M
+    W -.-> T[Pontos TODO: TCP, protocolo e temporizadores]
 ```
 
-Na simulação, o último passo é `FakeSession.start`, que registra
-`HelloOffered(nickname)` em memória. Não são bytes nem envio real.
+`_start_worker(nickname)` agenda `HelloOffered(nickname)` primeiro e inicia a
+thread. `_enqueue(command)` entrega intenções ao laço sem fazer serialização.
+As intenções reutilizam os tipos de `session.py`: `HelloOffered`, `ReadyOffered`,
+`BoardOffered`, `AttackOffered` e `DefeatOffered`. Esse catálogo interno não
+adiciona tipos ao protocolo TVP/1.
 
-O caminho do nome remoto também está pronto:
+O laço envia até 32 intenções por ciclo, consulta eventos e chama o ponto de
+processamento dos temporizadores. Espera até 20 ms entre ciclos com uma espera
+interrompível. A ordem FIFO conserva ataque → tabuleiro → derrota. As filas
+contêm até 256 itens; excesso produz falha visível, sem descartar ataques
+silenciosamente. Esse limite de objetos não substitui o futuro limite de
+4096 bytes no buffer de transporte.
 
-```text
-MATCH recebido → OpponentDefined(apelido_remoto) → App.update → App.opponent → ui._render
-```
+`_publish(event)` coloca eventos recebidos na fila de entrada. `poll()` apenas
+drena essa fila, sem realizar I/O. `App.update()` aplica os eventos na thread
+principal, mantendo toda a física e todas as chamadas curses nesse fluxo.
 
-O adaptador deve transformar mensagens recebidas nestes eventos existentes:
+## Onde implementar no cliente
 
-| Mensagem recebida | Evento interno |
+Arquivo: `src/tetris_client/network.py`.
+
+| Método pendente | Implementação esperada |
 | --- | --- |
-| MATCH | `OpponentDefined(nickname)` |
-| READY com GO | `StartAuthorized()` |
-| BOARD | `BoardReceived(snapshot)` |
-| ATTACK | `AttackReceived(amount)` |
-| GAMEOVER | `MatchResult(result, reason)` |
-| Falha/fechamento sem resultado | `ConnectionLost()` |
+| `start(nickname)` | Habilitar a sessão quando os pontos abaixo estiverem implementados, chamando `_start_worker(nickname)`. |
+| `ready()` | Validar a fase e chamar `_enqueue(ReadyOffered())`. |
+| `offer_board(board)` | Validar a fase e chamar `_enqueue(BoardOffered(board))`. |
+| `attack(amount)` | Validar a fase e a quantidade 1, 2 ou 4; chamar `_enqueue(AttackOffered(amount))`. |
+| `defeat(reason)` | Agendar `DefeatOffered(reason)` uma vez; manter conexão até resultado. |
+| `_connect()` | Criar e conectar o socket TCP usando `self.host` e `self.port`, limitando o tempo de conexão. |
+| `_send(command)` | Traduzir a intenção, serializar e manter o buffer de envio, inclusive escritas parciais e limite de 4096 bytes. |
+| `_receive_events()` | Ler sem bloquear, detectar EOF, delimitar/interpretar bytes, validar direção/fase e devolver eventos tipados. |
+| `_process_timers()` | Implementar KEEPALIVE a cada 5 s após HELLO e timeout de 15 s, com `self._clock`. |
+| `_close_connection()` | Liberar socket e buffers na thread de rede, inclusive se a conexão falhou. |
 
-Não ecoar BOARD ou ATTACK recebidos. A aplicação já espera autorização antes
-de jogar e conserva a ordem ataque → snapshot → derrota ao publicar uma
-fixação. Não mudar essa ordem no buffer de saída.
+Os cinco últimos métodos são chamados exclusivamente pelo laço da thread.
+`_send` recebe HELLO como primeira intenção depois que `_connect` retorna.
+Os métodos públicos de intenção continuam stubs para que sua implementação
+inclua as regras de estado do protocolo, sem aparentar comunicação funcional.
+O `start` atual não chama `_start_worker`; portanto, o modo network ainda não
+inicia a thread nem uma conexão. Os testes ativam o auxiliar em uma subclasse
+que substitui os pontos pendentes, exclusivamente para verificar concorrência.
 
-`ui._run` já usa `NetworkSession` para a opção Multiplayer. Enquanto `start`
-for um stub, exibe indisponibilidade e volta ao menu, preservando o nome.
-Não trocar esse adaptador pelo fake para apresentar multiplayer funcionando.
+`close()` já sinaliza parada e aguarda a thread por até 200 ms. O laço chama
+`_close_connection()` em `finally`, fora do bloqueio das filas. Implemente os
+pontos de transporte com espera limitada e verificação de parada; uma operação
+bloqueada pode sobreviver ao prazo de `close()`. A thread é daemon. Ela não
+processa comandos nem publica eventos após observar a parada. Fechamento
+repetido é seguro e a sessão não pode ser reutilizada.
 
-## 4. Servidor — frente ainda não criada
+## Onde implementar o protocolo
 
-Criar `tetris_server` conforme o contexto geral e o boilerplate do servidor
-quando fornecido. Admitir duas conexões, validar HELLO em até 5 segundos,
-enviar MATCH com o nome do outro jogador, esperar ambos os READY/PLAYER e
-autorizar com READY/GO. Encaminhar boards e ataques, registrar uma decisão
-única e finalizar após tentar escoar as notificações por até 1 segundo.
+Arquivo: `src/tetris_shared/protocol.py`.
 
-Rejeitar terceira conexão. Tratar KO, desconexão, timeout, violação de
-protocolo e parada do servidor conforme a seção 8 do contexto. O servidor
-não simula a física. Uma nova partida exige reiniciar servidor e clientes.
+- `encode(message_type, fields)`: validar e produzir uma linha ASCII TVP/1 com LF.
+- `parse(line)`: validar prefixo, tipo e campos, devolvendo o par tipo/campos.
+- `Framer.feed(data)`: acumular fragmentos TCP e separar todas as linhas completas,
+  limitando cada linha a 512 bytes incluindo LF.
 
-## 5. Validação da comunicação real
+Exatamente oito tipos: HELLO, MATCH, READY, BOARD, ATTACK, KO, GAMEOVER e
+KEEPALIVE. BOARD contém 200 dígitos de blocos fixos. A especificação de gramática,
+direções, fases e resultados continua em [00-contexto-geral.md](00-contexto-geral.md).
+Não importar socket, protocolo ou curses no motor.
 
-Adicionar testes de mensagens fragmentadas e agrupadas, campos inválidos,
-limites de buffers, escritas parciais, HELLO/KEEPALIVE/timeouts e desconexões.
-Depois testar dois clientes contra o servidor: nomes distintos, prontidão,
-ataques, boards e um único resultado confirmado. Os testes locais atuais
-não comprovam funcionamento da rede.
+## Interface e servidor
 
-## 6. Verificação local e pendências de interface
+`--host` e `--port` guardam o destino futuro, com padrão `127.0.0.1:8765`.
+Multiplayer informa pendência e retorna ao menu. `--mode network` em terminal
+interativo termina com código 2 e o TODO; nunca cai em `FakeSession`.
+Treino e simulação permanecem funcionais.
+
+O servidor `src/tetris_server/` também precisa ser criado. Ele deverá aceitar
+dois jogadores, validar HELLO, enviar MATCH, esperar READY/PLAYER de ambos,
+autorizar READY/GO, encaminhar boards/ataques e confirmar um único resultado.
+Uma nova partida exigirá reiniciar servidor e clientes.
+
+## Testes da estrutura
 
 ```bash
 .venv/bin/python -m unittest discover -s tests
-# Sem ambiente instalado:
+# Sem instalação:
 PYTHONPATH=src python3 -m unittest discover -s tests
 ```
 
-`tests/test_client.py` reúne 26 testes de motor, aplicação, fake, modelos e
-stubs. `tests/test_menu_and_delay.py` reúne 14 testes de menu, apelidos,
-cabeçalhos, fixação e pausa. `tests/test_hold_and_rotation.py` reúne 16 testes
-de reserva, giros, controles na TUI e garantias do 7-bag.
-A renderização usa uma tela substituta, sem
-terminal real. A validação visual/interativa em Linux/WSL continua necessária.
-
-No fake demonstrativo, o primeiro BOARD oferece o snapshot remoto fixo.
-O quinto BOARD local agenda uma linha de lixo: corresponde à quarta fixação,
-pois o BOARD de início também é contado. Depois o ataque se repete a cada
-cinco fixações. Esse roteiro não implementa física de um segundo jogador.
-
-## Onde ajustar o jogo já implementado
-
-- `src/tetris_shared/rules.py`: gravidade e constantes do atraso de fixação.
-- `src/tetris_client/engine.py`: `lock_delay`, `_touch_ground`, `tick`,
-  `pause` e `resume` controlam o prazo sem reset infinito por movimento;
-  `hold` e `rotate(turns)` implementam reserva e giros.
-- `src/tetris_client/ui.py`: `_menu` controla opções/nome e `_render` mostra
-  os cabeçalhos dos jogadores.
-- `tests/test_menu_and_delay.py`: testes determinísticos das mudanças.
-- `tests/test_hold_and_rotation.py`: reserva, giros, teclas e 7-bag.
-
-## A implementação manual fica só em tetris_shared?
-
-Não. `src/tetris_shared/protocol.py` contém `encode`, `parse` e `Framer.feed`
-para implementar o codec e o framing TVP/1. A sintaxe e a semântica estão nas
-seções 6–8 de `00-contexto-geral.md`.
-
-Também é preciso implementar `src/tetris_client/network.py` para conexão
-TCP, I/O, buffers, eventos e timers, definir endereço/porta na interface ou
-CLI e criar o servidor `tetris_server`. O motor e a TUI já usam a porta de
-sessão; não precisam incorporar sockets ou serialização. Os stubs de rede
-e protocolo continuam com `TODO[EP-REDE]` nesta entrega.
+`tests/test_network.py` usa uma subclasse exclusiva de teste para verificar
+ordem das intenções, thread responsável pelas chamadas, filas, erros e parada,
+sem sockets. Também verifica que espera de conexão/envio não bloqueia o jogo
+ou `poll()`. O teste de protocolo confirma que os três pontos continuam stubs.
+Esses testes validam o esquema concorrente; os testes de TCP, codec, framing,
+escritas parciais e temporizadores serão necessários quando você implementar
+os pontos pendentes.

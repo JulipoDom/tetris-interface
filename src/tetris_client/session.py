@@ -1,4 +1,4 @@
-"""Porta tipada e fake: objetos Python, sem bytes, arquivos ou rede."""
+"""Porta tipada e sessão simulada: objetos Python, sem bytes, arquivos ou rede."""
 
 import re
 from collections import deque
@@ -21,7 +21,7 @@ def validate_nickname(nickname: str) -> None:
 class Session(Protocol):
     # Abre a sessão com o apelido que corresponde ao futuro HELLO.
     def start(self, nickname: str) -> None: ...
-    # Registra prontidão; o fake agenda uma autorização separada.
+    # Registra prontidão; a sessão simulada agenda uma autorização separada.
     def ready(self) -> None: ...
     # Oferece uma cópia dos blocos fixos para envio ao oponente.
     def offer_board(self, board: BoardSnapshot) -> None: ...
@@ -64,7 +64,7 @@ SessionOutput = HelloOffered | ReadyOffered | BoardOffered | AttackOffered | Def
 
 
 class FakeSession:
-    """Injeção manual para testes; roteiro demonstrativo opcional na TUI.
+    """Injeção manual para testes; roteiro demonstrativo opcional na interface de terminal.
 
     Uma consulta retorna um lote. READY registra a saída e agenda GO para
     outra consulta. demo não representa um segundo motor nem um servidor.
@@ -96,7 +96,7 @@ class FakeSession:
             self.inject()  # Um ciclo de espera observável.
             self.inject(OpponentDefined("Oponente_demo"))
 
-    # Registra prontidão; o fake agenda uma autorização separada.
+    # Registra prontidão; a sessão simulada agenda uma autorização separada.
     def ready(self) -> None:
         if not self.started or self.closed:
             raise RuntimeError("Sessão não está aberta")

@@ -20,7 +20,7 @@ class Clock:
 
 
 class Screen:
-    """Substitui apenas o terminal externo; executa a UI real."""
+    """Substitui apenas o terminal externo; executa a interface real."""
 
     # Prepara teclas simuladas e um registro do desenho do terminal.
     def __init__(self, keys=()):
@@ -56,7 +56,7 @@ class LockDelayTests(unittest.TestCase):
         self.game.start()
         self.game.active = Piece(PieceKind.T, 3, 17, ((2, 1), (1, 0), (1, 1), (1, 2)))
 
-    # Checks that collision allows rotation before locking.
+    # Confere que a colisão permite girar antes da fixação.
     def test_collision_allows_rotation_before_locking(self):
         piece = self.game.active
         self.assertEqual(self.game.soft_drop(), [])
@@ -70,7 +70,7 @@ class LockDelayTests(unittest.TestCase):
         self.clock.now = 0.8
         self.assertTrue(any(isinstance(e, BoardProduced) for e in self.game.tick()))
 
-    # Checks that repeated moves and down do not extend lock deadline.
+    # Confere que movimentos repetidos e descidas não estendem o prazo de fixação.
     def test_repeated_moves_and_down_do_not_extend_lock_deadline(self):
         self.game.soft_drop()
         for instant in (0.1, 0.3, 0.6, 0.79):
@@ -81,7 +81,7 @@ class LockDelayTests(unittest.TestCase):
         self.clock.now = 0.8
         self.assertTrue(any(isinstance(e, BoardProduced) for e in self.game.tick()))
 
-    # Checks that delay shortens after thirty seconds of play.
+    # Confere que o atraso diminui após trinta segundos de jogo.
     def test_delay_shortens_after_thirty_seconds_of_play(self):
         self.clock.now = 30
         self.game.soft_drop()
@@ -90,7 +90,7 @@ class LockDelayTests(unittest.TestCase):
         self.clock.now = 30.75
         self.assertTrue(any(isinstance(e, BoardProduced) for e in self.game.tick()))
 
-    # Checks that delay never falls below two hundred ms.
+    # Confere que o atraso nunca fica abaixo de duzentos milissegundos.
     def test_delay_never_falls_below_two_hundred_ms(self):
         self.clock.now = 3600
         self.game.soft_drop()
@@ -99,7 +99,7 @@ class LockDelayTests(unittest.TestCase):
         self.clock.now = 3600.2
         self.assertTrue(any(isinstance(e, BoardProduced) for e in self.game.tick()))
 
-    # Checks that pause preserves remaining lock time.
+    # Confere que a pausa preserva o tempo restante até a fixação.
     def test_pause_preserves_remaining_lock_time(self):
         app = App("local", "Ana", engine=self.game)
         app.start()
@@ -116,7 +116,7 @@ class LockDelayTests(unittest.TestCase):
         app.update()
         self.assertTrue(any(any(row) for row in self.game.board))
 
-    # Checks that landing starts delay before next gravity step.
+    # Confere que o contato com o chão inicia o atraso antes do próximo passo de gravidade.
     def test_landing_starts_delay_before_next_gravity_step(self):
         self.game.active = Piece(PieceKind.O, 4, 17, SHAPES[PieceKind.O][1])
         self.game.soft_drop()
@@ -125,13 +125,13 @@ class LockDelayTests(unittest.TestCase):
         self.clock.now = 0.8
         self.assertTrue(any(isinstance(e, BoardProduced) for e in self.game.tick()))
 
-    # Checks that hard drop remains immediate.
+    # Confere que a queda rápida permanece imediata.
     def test_hard_drop_remains_immediate(self):
         events = self.game.hard_drop()
         self.assertTrue(any(isinstance(e, BoardProduced) for e in events))
         self.assertEqual(self.clock.now, 0)
 
-    # Checks that new piece gets its own lock timer.
+    # Confere que a nova peça recebe seu próprio prazo de fixação.
     def test_new_piece_gets_its_own_lock_timer(self):
         self.game.soft_drop()
         self.clock.now = 0.8
@@ -143,7 +143,7 @@ class LockDelayTests(unittest.TestCase):
         self.clock.now = 1.6
         self.assertTrue(any(isinstance(e, BoardProduced) for e in self.game.tick()))
 
-    # Checks that waiting and pause do not increase difficulty.
+    # Confere que a espera e a pausa não aumentam a dificuldade.
     def test_waiting_and_pause_do_not_increase_difficulty(self):
         clock = Clock()
         game = Engine(clock=clock)
@@ -162,7 +162,7 @@ class LockDelayTests(unittest.TestCase):
         app.update()
         self.assertTrue(any(any(row) for row in game.board))
 
-    # Checks that expired deadline does not lock an airborne piece.
+    # Confere que um prazo vencido não fixa uma peça suspensa.
     def test_expired_deadline_does_not_lock_an_airborne_piece(self):
         self.game.active = Piece(PieceKind.O, 4, 16, SHAPES[PieceKind.O][1])
         self.game.board[18][4] = 8
@@ -186,7 +186,7 @@ class MenuAndNameTests(unittest.TestCase):
         _render(screen, app, {i: 0 for i in range(9)})
         self.assertIn((8, 53, "Fixação: 800 ms"), screen.lines)
 
-    # Checks that menu offers practice and multiplayer.
+    # Confere que o menu oferece treino e modo multijogador.
     def test_menu_offers_practice_and_multiplayer(self):
         screen = Screen((curses.KEY_DOWN, 10))
         self.assertEqual(_menu(screen, "Ana"), ("network", "Ana"))
@@ -195,7 +195,7 @@ class MenuAndNameTests(unittest.TestCase):
         self.assertTrue(any("Multiplayer" in label for label in labels))
         self.assertFalse(any("Simulação" in label for label in labels))
 
-    # Checks that chosen menu name reaches hello and player header.
+    # Confere que o nome escolhido no menu chega ao HELLO e ao cabeçalho do jogador.
     def test_chosen_menu_name_reaches_hello_and_player_header(self):
         screen = Screen((*[127] * 7, *map(ord, "Ana_42"), 10))
         mode, name = _menu(screen, "Jogador")
@@ -206,7 +206,7 @@ class MenuAndNameTests(unittest.TestCase):
         _render(screen, app, {i: 0 for i in range(9)})
         self.assertIn((3, 2, "Você: Ana_42"), screen.lines)
 
-    # Checks that opponent header waits for match name.
+    # Confere que o cabeçalho do oponente aguarda o nome da partida.
     def test_opponent_header_waits_for_match_name(self):
         screen = Screen()
         fake = FakeSession()

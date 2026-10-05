@@ -36,6 +36,12 @@ Git worktree skills only when authorized and supported by the environment.
 - Network and protocol methods remain `TODO[EP-REDE]` stubs raising
   `NotImplementedError` until real networking is explicitly requested.
   Network mode must never fall back to FakeSession.
+- Preserve the existing thread/queue scaffold in `network.py`. The main thread
+  owns Engine and curses; `_start_worker`, `_enqueue`, `_publish`, `poll`, and
+  `close` coordinate threads and objects only. TCP, codec, framing, byte buffers,
+  and network timers remain `TODO[EP-REDE]` implementation points.
+- Keep comments and docstrings in project-owned Python files in Portuguese.
+  Preserve official API names, identifiers, and vendored third-party sources.
 - Preserve attack → board snapshot → local defeat when publishing a lock.
 - Use injectable clocks and separate piece/garbage RNGs for deterministic tests.
 - Run `.venv/bin/python -m unittest discover -s tests` after behavior changes.
