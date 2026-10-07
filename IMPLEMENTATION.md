@@ -1,7 +1,8 @@
 # Esquema de threads para implementar a comunicação
 
-Atualização: 05/10/2026. A comunicação real fica para implementação pela equipe.
-O código atual não conecta sockets, não envia bytes, não interpreta mensagens
+Atualização: 07/10/2026. Protocolo TVP/1 e controlador da partida única
+do servidor estão implementados.
+O código atual não conecta sockets nem envia bytes pela rede
 e não executa KEEPALIVE ou timeout de rede. Esses pontos levantam
 `NotImplementedError` com o marcador `TODO[EP-REDE]`.
 
@@ -70,14 +71,28 @@ bloqueada pode sobreviver ao prazo de `close()`. A thread é daemon. Ela não
 processa comandos nem publica eventos após observar a parada. Fechamento
 repetido é seguro e a sessão não pode ser reutilizada.
 
-## Onde implementar o protocolo
+## Protocolo compartilhado implementado
 
 Arquivo: `src/tetris_shared/protocol.py`.
 
-- `encode(message_type, fields)`: validar e produzir uma linha ASCII TVP/1 com LF.
-- `parse(line)`: validar prefixo, tipo e campos, devolvendo o par tipo/campos.
-- `Framer.feed(data)`: acumular fragmentos TCP e separar todas as linhas completas,
-  limitando cada linha a 512 bytes incluindo LF.
+- `encode(tipo_mensagem, campos)`: recebe `MessageType` e tupla de strings;
+  valida e produz uma linha ASCII TVP/1 com LF.
+- `parse(linha)`: recebe bytes de exatamente uma linha incluindo LF;
+  valida prefixo, tipo e campos, devolvendo `MessageType` e tupla de strings.
+- `Framer.feed(dados)`: recebe bytes, retorna linhas completas com LF e
+  conserva o fragmento. Use uma instância por conexão. O limite é 512 bytes
+  incluindo LF: fragmento de 511 bytes pode ser completado; 512 sem LF é erro.
+
+Tipos Python incorretos geram `TypeError`; conteúdo inválido gera `ValueError`.
+Após excesso, o delimitador libera o fragmento e permanece inválido. O adaptador
+deve encerrar a conexão. Se um lote contém excesso, a chamada lança a exceção
+sem entregar as linhas daquele lote. Delimitação não valida sintaxe: cada
+linha retornada deve passar por `parse`. Entrada vazia não indica EOF ao
+Framer; detectar EOF pertence ao transporte.
+
+Direção, fase e combinações semânticas de resultado/motivo continuam nos
+adaptadores. O codec valida os tokens da gramática. Buffers de saída de
+4096 bytes, escritas parciais e timers também pertencem ao transporte.
 
 Exatamente oito tipos: HELLO, MATCH, READY, BOARD, ATTACK, KO, GAMEOVER e
 KEEPALIVE. BOARD contém 200 dígitos de blocos fixos. A especificação de gramática,
@@ -91,10 +106,48 @@ Multiplayer informa pendência e retorna ao menu. `--mode network` em terminal
 interativo termina com código 2 e o TODO; nunca cai em `FakeSession`.
 Treino e simulação permanecem funcionais.
 
-O servidor `src/tetris_server/` também precisa ser criado. Ele deverá aceitar
-dois jogadores, validar HELLO, enviar MATCH, esperar READY/PLAYER de ambos,
-autorizar READY/GO, encaminhar boards/ataques e confirmar um único resultado.
-Uma nova partida exigirá reiniciar servidor e clientes.
+O pacote `src/tetris_server/` fornece `ControladorPartida` em `partida.py`.
+Ele admite duas conexões, exige HELLO, informa MATCH, espera ambos PLAYER,
+produz GO, encaminha BOARD/ATTACK e grava um único resultado antes de devolver
+as notificações GAMEOVER. Ainda não há executável servidor nem TCP.
+
+## API do controlador da partida
+
+Todas as chamadas retornam `list[AcaoServidor]`, na ordem a executar. São ações
+Python internas, não mensagens extras no TVP/1:
+
+| Método | Responsabilidade |
+| --- | --- |
+| `admitir(conexao)` | Reservar uma das duas posições; rejeitar terceira ou nova conexão após encerramento com FecharConexao. |
+| `receber(conexao, tipo_mensagem, campos)` | Validar sintaxe, direção e fase; retornar envios ao oponente ou decisão final. |
+| `desconectar(conexao)` | Informar perda da conexão, aplicando DISCONNECT. |
+| `falhar(conexao, motivo)` | Informar DISCONNECT, TIMEOUT ou PROTOCOL observado pelo adaptador. |
+| `parar()` | Cancelar por SERVER_STOP, inclusive antes de identificar ambos. |
+
+A referência de conexão é um objeto hashable estável, distinto por conexão;
+não trafega no protocolo nem constitui ID de jogador/partida. Não reutilizar
+referências encerradas. O futuro loop chama o controlador sequencialmente:
+a classe não faz sincronização entre threads.
+
+`EnviarMensagem(conexao, tipo_mensagem, campos)` solicita envio futuro;
+`FecharConexao(conexao)` solicita fechamento imediato. Os objetos são imutáveis.
+`fase` informa AGUARDANDO, PREPARACAO, ATIVA ou ENCERRADA; `decisao` contém
+motivo e resultados imutáveis por participante identificado.
+
+Uma falha antes de HELLO libera a posição. Depois de HELLO, encerra a partida:
+CANCEL antes de GO, WIN ao oponente durante o jogo, com o resultado do ausente
+registrado internamente. O participante indisponível não recebe intenção de
+GAMEOVER. KO válido produz LOSE/WIN; a parada planejada sempre produz CANCEL.
+Após decisão, mensagens/falhas tardias não mudam o resultado. READY/PLAYER
+repetido ou atrasado é idempotente, e KEEPALIVE não produz resposta.
+
+O adaptador deverá processar parse/framing e comunicar erros com PROTOCOL;
+acompanhar os prazos de HELLO (5 s), KEEPALIVE (5 s) e inatividade (15 s);
+serializar as ações na ordem; tratar buffers/escritas parciais; e, ao verificar
+ENCERRADA, tentar escoar GAMEOVER por até 1 s antes de fechar tudo e terminar.
+Não fechar os destinatários de GAMEOVER antes dessa tentativa de envio.
+Esses mecanismos continuam pendentes. Uma nova partida exigirá reiniciar
+servidor e clientes.
 
 ## Testes da estrutura
 
@@ -107,7 +160,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests
 `tests/test_network.py` usa uma subclasse exclusiva de teste para verificar
 ordem das intenções, thread responsável pelas chamadas, filas, erros e parada,
 sem sockets. Também verifica que espera de conexão/envio não bloqueia o jogo
-ou `poll()`. O teste de protocolo confirma que os três pontos continuam stubs.
-Esses testes validam o esquema concorrente; os testes de TCP, codec, framing,
-escritas parciais e temporizadores serão necessários quando você implementar
-os pontos pendentes.
+ou `poll()`. `tests/test_protocol.py` cobre validação, codec e framing sem
+sockets, incluindo fragmentação e limites. Testes de TCP, escritas parciais
+e temporizadores continuam pendentes. `tests/test_server.py` valida os estados
+e resultados com referências em memória, sem sockets.

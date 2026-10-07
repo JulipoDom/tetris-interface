@@ -33,12 +33,14 @@ Git worktree skills only when authorized and supported by the environment.
 - `engine.py` must not import curses, socket, or session adapters.
 - Two players and one match; exactly eight message types. No rooms,
   matchmaking, accounts, rankings, or match identifiers.
-- Network and protocol methods remain `TODO[EP-REDE]` stubs raising
+- Network transport methods remain `TODO[EP-REDE]` stubs raising
   `NotImplementedError` until real networking is explicitly requested.
+  Shared TVP/1 encoding, parsing, and framing were explicitly authorized
+  and implemented on 2026-10-07; preserve their functional tests.
   Network mode must never fall back to FakeSession.
 - Preserve the existing thread/queue scaffold in `network.py`. The main thread
   owns Engine and curses; `_start_worker`, `_enqueue`, `_publish`, `poll`, and
-  `close` coordinate threads and objects only. TCP, codec, framing, byte buffers,
+  `close` coordinate threads and objects only. TCP, outgoing byte buffers,
   and network timers remain `TODO[EP-REDE]` implementation points.
 - Keep comments and docstrings in project-owned Python files in Portuguese.
   Preserve official API names, identifiers, and vendored third-party sources.
