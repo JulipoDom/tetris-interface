@@ -7,10 +7,21 @@ TUI `curses`, treino e sessão simulada em memória. A implementação segue
 
 **Comunicação TCP pendente para implementação pela equipe.** O cliente contém
 o esquema de uma thread de rede com filas e sinal de parada. Conexão, envio,
-recepção, codec e temporizadores são stubs `TODO[EP-REDE]` que levantam
-`NotImplementedError`. Este checkout também não contém `tetris_server`.
+recepção e temporizadores são stubs `TODO[EP-REDE]` que levantam
+`NotImplementedError`. O pacote `tetris_server` contém o controlador puro
+da partida; seu executável e transporte TCP ainda não foram implementados.
 
-## Estado atual — 05/10/2026
+## Atualização — 07/10/2026
+
+- Interface aceita pelo usuário após a validação do milestone 1.
+- Protocolo compartilhado implementado: oito tipos, ASCII estrito, campos
+  validados, LF obrigatório e delimitação incremental com limite de 512 bytes.
+- Controlador do servidor implementado: admissão, prontidão, encaminhamento,
+  falhas e resultado único. 125 testes aprovados (28 do controlador).
+- TCP, estados do adaptador cliente, temporizadores e executável servidor pendentes.
+- Contrato das APIs em [IMPLEMENTATION.md](IMPLEMENTATION.md).
+
+## Estado histórico — 05/10/2026
 
 - Menu padrão com Prática e Multiplayer, edição do apelido e cabeçalhos com
   nomes local/remoto implementados; simulação acessível por `--mode simulated`.
@@ -186,19 +197,24 @@ tetris-interface/
 │   │   ├── ui.py                 # teclado e desenho curses
 │   │   ├── session.py            # porta tipada e FakeSession
 │   │   └── network.py            # estrutura de thread; TCP pendente
+│   ├── tetris_server/
+│   │   ├── __init__.py
+│   │   └── partida.py            # controlador puro da partida única
 │   └── tetris_shared/
 │       ├── __init__.py
 │       ├── models.py             # snapshots, eventos e oito tipos
 │       ├── rules.py              # constantes e tabelas comuns
-│       └── protocol.py           # TODO[EP-REDE]: codec e framing
+│       └── protocol.py           # codec TVP/1 e delimitação incremental
 └── tests/
     ├── __init__.py
     ├── test_client.py            # motor, aplicação, fake e fronteiras
     ├── test_menu_and_delay.py    # menu, nomes, prazo de fixação e pausa
     ├── test_hold_and_rotation.py # reserva, giros, teclas e garantias do 7-bag
-    ├── test_protocol.py          # stubs de codec e framing
+    ├── test_protocol.py          # validação, codec e framing
+    ├── test_server.py            # admissão, estados, encaminhamento e resultado
     ├── test_network.py           # estrutura de thread, filas e parada
-    └── test_network_entrypoints.py # CLI e menu multiplayer
+    ├── test_network_entrypoints.py # CLI e menu multiplayer
+    └── test_terminal.py          # integração curses em pseudoterminal Linux/WSL
 ```
 
 Os testes usam relógios injetáveis e uma tela substituta. A estrutura concorrente
@@ -209,30 +225,39 @@ snapshots, ordem de publicação, prontidão, resultado, cancelamento e falhas.
 Também verificam seleção de modo, edição do apelido, entrega do nome à sessão,
 cabeçalhos dos jogadores, atraso inicial durante a espera, redução do atraso,
 pausa e prazo expirado enquanto a peça está no ar. A tela é substituída por
-um objeto de teste; isso não substitui a validação visual em terminal real.
+um objeto de teste nos testes unitários. Os oito testes de `test_terminal.py`
+executam o cliente real em pseudoterminal (PTY), verificando menu, pausa,
+redimensionamento, resultados simulados, rede pendente e restauração dos
+atributos do terminal. Isso não substitui o aceite visual humano.
 
-Verificação desta revisão:
+Verificação do milestone 1 em 07/10/2026, com Python 3.14.7 em Linux:
 
 ```bash
-.venv/bin/python -m unittest discover -s tests
-# 74 testes — OK, sem testes ignorados.
+PYTHONPATH=src python3 -m unittest discover -s tests
+# 82 testes — OK, sem testes ignorados.
 ```
+
+O [registro e roteiro do milestone 1](docs/superpowers/reports/2026-10-07-milestone-01.md)
+descreve as evidências automatizadas, o roteiro e o aceite geral informado pelo usuário.
 
 ## Próxima etapa: integração da equipe
 
 Veja [IMPLEMENTATION.md](IMPLEMENTATION.md) para o funcionamento das threads,
-os pontos de integração e a frente de servidor pendente.
+os pontos de integração e a API do controlador de servidor.
 
 `NetworkSession` fornece thread, filas, consulta de eventos e sinal de parada.
 Seus pontos de conexão TCP, envio/recepção, tradução e timers continuam TODO.
-`protocol.py` contém stubs de encoder, parser e framing. Os oito tipos são
+`protocol.py` implementa encoder, parser e framing. Os oito tipos são
 `HELLO`, `MATCH`, `READY`, `BOARD`, `ATTACK`, `KO`, `GAMEOVER` e `KEEPALIVE`.
 
-Esta frente entrega apenas o cliente e o pacote compartilhado. O executável
-`tetris_server` será desenvolvido na frente do servidor; seu boilerplate não
-foi fornecido aqui. O desenho prevê dois jogadores, um servidor e uma única
+O controlador em `tetris_server.partida` recebe mensagens tipadas e devolve
+ações para o futuro transporte. O executável `tetris_server` e seus sockets
+ainda precisam ser implementados. O desenho prevê dois jogadores, um servidor e uma única
 partida por execução. **Uma nova partida real exige reiniciar o servidor e
 os clientes.** Não reutilizar conexão encerrada nem criar gerenciador de salas.
+
+O [relatório do controlador](docs/superpowers/reports/2026-10-07-controlador-partida.md)
+registra a implementação, os testes e as responsabilidades do transporte futuro.
 
 ## Workflow dos agentes
 

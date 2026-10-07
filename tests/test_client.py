@@ -7,7 +7,6 @@ from tetris_client.network import NetworkSession
 from tetris_client.session import (
     AttackOffered, BoardOffered, DefeatOffered, FakeSession, ReadyOffered,
 )
-from tetris_shared import protocol
 from tetris_shared.models import (
     AttackProduced, AttackReceived, BoardProduced, BoardReceived, BoardSnapshot,
     ConnectionLost, EndReason, LocalDefeat, LossReason, MatchResult, MessageType,
@@ -350,19 +349,14 @@ class BoundaryTests(unittest.TestCase):
     def test_exactly_eight_message_types(self):
         self.assertEqual(len(MessageType), 8)
 
-    def test_network_and_protocol_are_pending_without_fake_fallback(self):
-        for call in (lambda: protocol.encode(MessageType.KEEPALIVE, ()),
-                     lambda: protocol.parse(b"TVP/1|KEEPALIVE\n"),
-                     lambda: protocol.Framer().feed(b"data")):
-            with self.assertRaisesRegex(NotImplementedError, r"TODO\[EP-REDE\]"):
-                call()
-        session = NetworkSession()
+    def test_rede_permanece_pendente_sem_simulacao_automatica(self):
+        sessao = NetworkSession()
         with self.assertRaisesRegex(NotImplementedError, r"TODO\[EP-REDE\]"):
-            session.start("Ana")
-        self.assertIsNone(session._thread)
-        self.assertEqual(session.poll(), [])
-        session.close()
-        session.close()
+            sessao.start("Ana")
+        self.assertIsNone(sessao._thread)
+        self.assertEqual(sessao.poll(), [])
+        sessao.close()
+        sessao.close()
 
     # Confere a validação do apelido e do retrato do tabuleiro.
     def test_nickname_and_snapshot_validation(self):

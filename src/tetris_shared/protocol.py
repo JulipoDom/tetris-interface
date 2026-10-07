@@ -1,23 +1,82 @@
-"""Pontos de implementação da codificação e delimitação TVP/1 para a equipe.
-
-A gramática está em 00-contexto-geral.md, seção 7. Nenhuma mensagem é
-serializada, interpretada ou delimitada nesta etapa.
-"""
+import re
 
 from .models import MessageType
 
 
-# Validar os campos e produzir ASCII com prefixo TVP/1 e LF final.
-def encode(message_type: MessageType, fields: tuple[str, ...]) -> bytes:
-    raise NotImplementedError("TODO[EP-REDE]: validar e serializar TVP/1 em ASCII")
+LIMITE_LINHA = 512
+PADROES_CAMPOS = {
+    MessageType.HELLO: (r"[A-Za-z0-9_]{1,20}",),
+    MessageType.MATCH: (r"[A-Za-z0-9_]{1,20}",),
+    MessageType.READY: (r"PLAYER|GO",),
+    MessageType.BOARD: (r"[0-8]{200}",),
+    MessageType.ATTACK: (r"1|2|4",),
+    MessageType.KO: (r"SPAWN|OVERFLOW",),
+    MessageType.GAMEOVER: (r"WIN|LOSE|CANCEL", r"KO|DISCONNECT|TIMEOUT|PROTOCOL|SERVER_STOP"),
+    MessageType.KEEPALIVE: (),
+}
 
 
-# Validar uma linha e devolver tipo e campos; direção/estado ficam no adaptador.
-def parse(line: bytes) -> tuple[MessageType, tuple[str, ...]]:
-    raise NotImplementedError("TODO[EP-REDE]: validar sintaxe e campos TVP/1")
+def _validar_campos(tipo_mensagem: MessageType, campos: tuple[str, ...]) -> None:
+    if not isinstance(tipo_mensagem, MessageType):
+        raise TypeError("Tipo da mensagem deve ser MessageType")
+    if not isinstance(campos, tuple) or any(not isinstance(campo, str) for campo in campos):
+        raise TypeError("Campos devem ser uma tupla de strings")
+    padroes = PADROES_CAMPOS[tipo_mensagem]
+    if len(campos) != len(padroes):
+        raise ValueError("Quantidade de campos inválida")
+    if any(re.fullmatch(padrao, campo) is None for padrao, campo in zip(padroes, campos)):
+        raise ValueError("Campo inválido para " + tipo_mensagem.value)
+
+
+def encode(tipo_mensagem: MessageType, campos: tuple[str, ...]) -> bytes:
+    _validar_campos(tipo_mensagem, campos)
+    return ("|".join(("TVP/1", tipo_mensagem.value, *campos)) + "\n").encode("ascii")
+
+
+def parse(linha: bytes) -> tuple[MessageType, tuple[str, ...]]:
+    if not isinstance(linha, bytes):
+        raise TypeError("Linha deve ser bytes")
+    if len(linha) > LIMITE_LINHA or not linha.endswith(b"\n") or linha.count(b"\n") != 1:
+        raise ValueError("Linha deve terminar em um único LF e ter no máximo 512 bytes")
+    try:
+        partes = linha[:-1].decode("ascii").split("|")
+    except UnicodeDecodeError as erro:
+        raise ValueError("Mensagem deve usar somente ASCII") from erro
+    if len(partes) < 2 or partes[0] != "TVP/1":
+        raise ValueError("Prefixo de protocolo inválido")
+    try:
+        tipo_mensagem = MessageType(partes[1])
+    except ValueError as erro:
+        raise ValueError("Tipo de mensagem desconhecido") from erro
+    campos = tuple(partes[2:])
+    _validar_campos(tipo_mensagem, campos)
+    return tipo_mensagem, campos
 
 
 class Framer:
-    # Acumular fragmentos, separar todas as linhas LF e limitar cada linha a 512 bytes.
-    def feed(self, data: bytes) -> list[bytes]:
-        raise NotImplementedError("TODO[EP-REDE]: acumular bytes, separar LF e limitar linhas")
+    def __init__(self) -> None:
+        self._fragmento = bytearray()
+        self._invalido = False
+
+    def feed(self, dados: bytes) -> list[bytes]:
+        if not isinstance(dados, bytes):
+            raise TypeError("Dados devem ser bytes")
+        if self._invalido:
+            raise ValueError("Delimitador inválido; encerre a conexão")
+        linhas = []
+        inicio = 0
+        while inicio < len(dados):
+            fim = dados.find(b"\n", inicio)
+            limite = len(dados) if fim == -1 else fim + 1
+            tamanho = len(self._fragmento) + limite - inicio
+            if tamanho > LIMITE_LINHA or (fim == -1 and tamanho >= LIMITE_LINHA):
+                self._fragmento.clear()
+                self._invalido = True
+                raise ValueError("Linha excede o limite de 512 bytes incluindo LF")
+            self._fragmento.extend(dados[inicio:limite])
+            if fim == -1:
+                break
+            linhas.append(bytes(self._fragmento))
+            self._fragmento.clear()
+            inicio = limite
+        return linhas

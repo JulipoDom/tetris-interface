@@ -1,6 +1,13 @@
 # Tetris Versus - contexto geral simplificado
 
-Revisão: 05/10/2026. Uso interno da equipe.
+Revisão: 05/10/2026, atualizada em 07/10/2026. Uso interno da equipe.
+
+**Atualização em 07/10/2026:** o usuário autorizou e foi implementado o
+protocolo compartilhado (`encode`, `parse`, `Framer.feed`). As indicações de
+codec/framing pendentes na descrição histórica de 05/10 referem-se à etapa
+inicial do boilerplate. O controlador do servidor também está implementado
+em `tetris_server.partida`, com validação de direção/fase e resultado único.
+TCP, adaptador cliente, timers e executável servidor permanecem pendentes. Consulte [IMPLEMENTATION.md](IMPLEMENTATION.md) para o contrato atual.
 
 **Atualização em 05/10/2026:** o cliente contém apenas o esquema de threads e
 filas para a equipe implementar a comunicação. TCP, codec TVP/1, framing e
@@ -153,7 +160,7 @@ O cliente que recebe BOARD não o retransmite. O cliente que recebe ATTACK apena
 
 ## 7. Começo do protocolo TVP/1
 
-**Desenho para a equipe implementar depois; não colocar codec ou socket funcional nos boilerplates.** Manter exatamente os oito tipos acima, sem mensagens auxiliares adicionais.
+**Codec e framing implementados em 07/10/2026; transporte permanece pendente.** Manter exatamente os oito tipos acima, sem mensagens auxiliares adicionais.
 
 Formato textual inicial: ASCII, `|` separando campos, LF terminando uma mensagem. Exemplos de representação; `\n` abaixo significa um único byte LF, não os dois caracteres barra e n:
 
@@ -188,7 +195,7 @@ motivo = "KO" | "DISCONNECT" | "TIMEOUT" | "PROTOCOL" | "SERVER_STOP" ;
 
 Restrições léxicas: LF é byte 10; `apelido` tem 1 a 20 caracteres de `[A-Za-z0-9_]`; `celulas` tem exatamente 200 caracteres de `[0-8]`. Campos extras, espaços, CR, encoding diferente, prefixo incompatível ou tokens desconhecidos são inválidos. Apelidos iguais são permitidos: não são identidade de sessão. Linha completa limitada a 512 bytes, incluindo LF; estourar esse limite antes de chegar LF também é erro.
 
-O parser futuro precisa acumular bytes por conexão, separar todas as linhas completas e guardar o fragmento restante. TCP não preserva fronteiras de mensagens. Escritas podem ser parciais; manter os bytes ainda não enviados. Limite proposto de saída: 4096 bytes por conexão; ao exceder, tratar como falha de conexão. Não descartar ataques silenciosamente. Apenas snapshots ainda não serializados podem ser substituídos por uma versão mais recente.
+O Framer acumula bytes por conexão, separa linhas completas com LF e guarda o fragmento restante; parse valida uma linha completa. TCP não preserva fronteiras de mensagens. Escritas podem ser parciais; manter os bytes ainda não enviados. Limite proposto de saída: 4096 bytes por conexão; ao exceder, tratar como falha de conexão. Não descartar ataques silenciosamente. Apenas snapshots ainda não serializados podem ser substituídos por uma versão mais recente.
 
 ### Estados válidos
 
@@ -245,10 +252,13 @@ Os testes de concorrência substituem somente os pontos pendentes e não abrem
 sockets. O limite de itens das filas não implementa o limite de bytes do futuro
 transporte, e esses testes não comprovam comunicação TCP.
 
-**Frente do servidor pendente:** controlador da partida única e executável
-`tetris_server`; não há implementação de servidor neste checkout.
+**Controlador do servidor implementado em 07/10/2026:** admissão, estados,
+encaminhamento e resultado único em `tetris_server.partida`, com 28 testes.
+Transporte, temporizadores e executável `tetris_server` continuam pendentes.
 
-**Pendente com TODO[EP-REDE]:** sockets, associação de conexão, encoder, parser, framing, buffers, timers de HELLO/KEEPALIVE, tratamento de bytes e integração real. Métodos executáveis ainda não implementados levantam `NotImplementedError`. Modo rede não pode cair silenciosamente no fake.
+**Protocolo pronto em 07/10/2026:** encoder, parser e framing, testados sem sockets.
+
+**Pendente com TODO[EP-REDE]:** sockets, associação de conexão, buffers de saída, timers de HELLO/KEEPALIVE, validação de direção/fase no adaptador cliente e integração real. Métodos executáveis ainda não implementados levantam `NotImplementedError`. Modo rede não pode cair silenciosamente no fake.
 
 Os mocks usam objetos Python em memória, sem serialização ou canal externo. Não representam evidência de comunicação para o EP.
 

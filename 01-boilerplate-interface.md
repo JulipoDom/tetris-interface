@@ -1,5 +1,11 @@
 # Boilerplate da interface - dois jogadores
 
+**Atualização em 07/10/2026:** o usuário confirmou a interface pronta e
+funcionando. O protocolo compartilhado foi implementado por solicitação
+explícita; os requisitos abaixo de codec/framing vazios pertencem à geração
+inicial do boilerplate. TCP, estados da sessão e timers continuam pendentes.
+Veja [IMPLEMENTATION.md](IMPLEMENTATION.md) para o contrato atual.
+
 **Atualização em 05/10/2026:** foi acrescentado somente o esquema de threads,
 filas e parada do cliente. Os requisitos de stubs continuam válidos para TCP,
 codec, framing e temporizadores. Consulte [IMPLEMENTATION.md](IMPLEMENTATION.md)
@@ -32,12 +38,12 @@ Consultar [README.md](README.md) para executar e
 | `src/tetris_client/network.py` | Esquema de thread, filas e parada; comunicação em stubs. |
 | `src/tetris_shared/models.py` | Tipos internos, cópias do tabuleiro e enum dos oito tipos. |
 | `src/tetris_shared/rules.py` | Constantes e tabela de score/ataque do contexto geral. |
-| `src/tetris_shared/protocol.py` | Stubs de encoder, parser e framing. |
+| `src/tetris_shared/protocol.py` | Encoder, parser e framing TVP/1 implementados. |
 | `tests/test_client.py` | Testes do motor e da aplicação com fake. |
 | `tests/test_menu_and_delay.py` | Testes do menu, nomes, atraso de fixação e pausa. |
 | `tests/test_hold_and_rotation.py` | Reserva, giros, controles e garantias do 7-bag. |
 | `tests/test_network.py` | Threads, ordem das filas, limites, falhas e parada, sem sockets. |
-| `tests/test_protocol.py` | Confirmação de stubs do encoder, parser e framing. |
+| `tests/test_protocol.py` | Validação de campos, codec e framing incremental. |
 | `tests/test_network_entrypoints.py` | Endereço/porta e aviso de rede pendente na CLI/menu. |
 
 Não criar catálogo de salas, seleção de partida, fila de matchmaking ou IDs de partida. Criar o pacote compartilhado uma vez no repositório, não duplicá-lo em cada frente.
@@ -150,10 +156,13 @@ python -m unittest discover -s tests
 
 ## 7. Aceite do boilerplate
 
-Estado conferido por testes automatizados em 05/10/2026. A jogabilidade
-visual/interativa em terminal real ainda precisa de aceite manual.
+Estado conferido por testes automatizados em 05/10/2026. O usuário confirmou
+o aceite geral em 07/10/2026: “interface esta pronta e funcionando”.
 
-- [ ] Treino jogável: colisão, rotação, queda, fixação e limpeza corretas.
+Atualização de 07/10/2026: os 74 testes existentes e oito novos testes de
+integração curses em PTY passaram (82 no total), antes do protocolo; veja o [registro e roteiro](docs/superpowers/reports/2026-10-07-milestone-01.md).
+
+- [x] Treino jogável: aceite geral da interface confirmado pelo usuário.
 - [x] Tabela comum de score e ATTACK respeitada; zero ataque não gera evento.
 - [x] Lixo espera o fim da peça, aplica até quatro linhas e preserva o restante.
 - [x] Spawn bloqueado e transbordamento produzem derrota única.
@@ -161,7 +170,7 @@ visual/interativa em terminal real ainda precisa de aceite manual.
 - [x] Fake demonstra prontidão e início distintos, além de resultado e interrupção.
 - [x] Tabuleiro remoto é cópia dos blocos fixos, sem animar física remota.
 - [x] Motor pode ser testado sem terminal, relógio real ou socket.
-- [x] Stubs continuam vazios; modo de rede não afirma estar funcionando.
+- [x] Stubs de transporte continuam vazios; modo de rede não afirma estar funcionando.
 - [x] Menu oferece Prática e Multiplayer e permite editar o apelido.
 - [x] Nome local chega à sessão; nome remoto atualiza o cabeçalho após o evento.
 - [x] Prazo de fixação não reinicia com movimento e nunca fixa uma peça no ar.
@@ -171,7 +180,7 @@ visual/interativa em terminal real ainda precisa de aceite manual.
 - [x] Cada bag contém todas as sete peças; sorteios não têm três iguais seguidas.
 - [x] Estrutura concorrente preserva ordem das intenções e mantém o jogo separado.
 - [x] Consulta de eventos e parada não esperam por uma operação de rede bloqueada.
-- [x] Pontos de TCP, codec, framing e temporizadores continuam pendentes.
+- [x] TCP e temporizadores continuam pendentes; codec e framing implementados.
 - [x] Comentários e docstrings do código próprio estão em português.
 
 Verificação: `.venv/bin/python -m unittest discover -s tests` — 74 testes,
