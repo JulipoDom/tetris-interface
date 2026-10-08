@@ -14,8 +14,8 @@ from .engine import Engine, GarbageLimitError
 from .session import Session, validate_nickname
 
 
-# O terminal não envia soltura da tecla; silêncio entre entradas libera o drop.
-HARD_DROP_RELEASE_SECONDS = 0.6
+# Intervalo fixo entre quedas aceitas, sem acumular entradas bloqueadas.
+HARD_DROP_COOLDOWN_SECONDS = 0.6
 
 
 class State(str, Enum):
@@ -55,7 +55,7 @@ class App:
         # A opção acompanha a aplicação, inclusive quando o motor é reiniciado.
         self.no_timeout = no_timeout
         self._last_input = clock()
-        self._last_drop_input: float | None = None
+        self._last_hard_drop: float | None = None
         self._finished_at: float | None = None
         self.rematch_requested = False
 
@@ -210,13 +210,6 @@ class App:
     # Traduz uma ação do jogador em movimento, prontidão ou pausa local.
     def action(self, action: str) -> None:
         self.record_input()
-        if action == "drop":
-            now = self._clock()
-            previous = self._last_drop_input
-            # Repetições também renovam a trava para não derrubar a próxima peça.
-            self._last_drop_input = now
-            if previous is not None and now - previous < HARD_DROP_RELEASE_SECONDS:
-                return
         if action == "ready":
             self.ready()
             return
@@ -246,6 +239,12 @@ class App:
         elif action == "down":
             self._publish(self.engine.soft_drop())
         elif action == "drop":
+            now = self._clock()
+            if (self._last_hard_drop is not None
+                    and now - self._last_hard_drop < HARD_DROP_COOLDOWN_SECONDS):
+                return
+            # Só a queda aceita inicia o prazo; teclas ignoradas não o prolongam.
+            self._last_hard_drop = now
             self._publish(self.engine.hard_drop())
 
     # Para o jogo e fecha a sessão sem inventar um resultado.

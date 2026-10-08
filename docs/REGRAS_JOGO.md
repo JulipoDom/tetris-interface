@@ -129,13 +129,14 @@ KEEPALIVE e timeout de rede continuam independentes.
 
 ## Proteção da queda instantânea
 
-Espaço fixa somente uma peça por sequência de entradas: novas quedas exigem
-600 ms sem receber outro Espaço. Repetições bloqueadas renovam o intervalo,
-inclusive ao pausar ou trocar de rodada por revanche. Movimento, rotação e
-reserva continuam disponíveis sem liberar a trava.
+Cada queda instantânea aceita inicia uma trava fixa de 600 ms. Espaços
+recebidos nesse intervalo são ignorados, sem acumular comandos ou renovar
+o prazo. Após o prazo, o próximo Espaço pode fixar outra peça, mesmo que
+tenham ocorrido tentativas bloqueadas. Movimento, rotação e reserva continuam
+disponíveis. Entradas durante pausa ou fora de PLAYING não iniciam a trava.
 
-Curses não fornece eventos de soltura da tecla. Por isso a liberação é
-inferida pelo silêncio; toques separados por menos de 600 ms também são
-bloqueados. Teclados configurados com atraso inicial de repetição superior
-a 600 ms podem gerar outra queda. É uma adaptação para terminal, sem
-equivalência prometida ao controle por keydown/keyup do TETR.IO.
+Curses não fornece eventos de soltura de tecla: esta é uma proteção por
+intervalo entre quedas, sem equivalência ao keydown/keyup do TETR.IO.
+Segurar Espaço pode produzir outra queda a cada 600 ms; não causa uma rajada
+imediata nem prolonga o bloqueio indefinidamente. A revanche conserva o
+intervalo restante; uma partida nova pelo menu cria a aplicação novamente.

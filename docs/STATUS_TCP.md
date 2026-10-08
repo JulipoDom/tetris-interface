@@ -37,8 +37,8 @@ da máquina. As tabelas de rotação são próprias, inspiradas no TETR.IO.
 
 ## Proteção do Espaço
 
-App.action agora filtra repetições de queda instantânea com intervalo de
-600 ms desde a última entrada de Espaço, renovado mesmo quando bloqueado.
-Não altera física, atraso de fixação nem TVP/1. O roteiro manual deve incluir
-segurar Espaço e depois soltá-lo por mais de 600 ms antes da próxima queda.
-Veja limites em REGRAS_JOGO.md.
+App.action aplica 600 ms desde a última queda instantânea aceita.
+Tentativas bloqueadas, pausadas ou fora de PLAYING não renovam o prazo.
+Roteiro manual: pressionar Espaço repetidamente e conferir que outra peça
+pode ser fixada após 600 ms, sem bloqueio indefinido nem rajada imediata.
+Não altera física, atraso de fixação nem TVP/1. Veja REGRAS_JOGO.md.

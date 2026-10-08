@@ -34,7 +34,7 @@ revanche, inatividade e falhas. O roteiro está em STATUS_TCP.md.
 A publicação usa o conector GitHub porque o SSH deste ambiente não consegue
 resolver github.com. Os remotos SSH locais foram preservados.
 
-## Conferência da proteção de queda instantânea
+## Conferência histórica da primeira proteção de queda instantânea
 
 Executada uma verificação temporária de App/Engine, sem adicionar arquivos
 de testes ao repositório. Antes da correção, uma entrada seguida de três
@@ -43,3 +43,13 @@ apenas 4; após silêncio superior a 600 ms, outra peça pôde ser fixada.
 Movimento, rotação, reserva e pausa foram conferidos. compileall e
 git diff --check passaram. Ainda falta conferir o teclado físico no terminal;
 limites de inferência de soltura estão em REGRAS_JOGO.md.
+
+## Correção do prolongamento indevido da trava
+
+A primeira proteção renovava o prazo a cada Espaço, inclusive bloqueado.
+Foi substituída por intervalo fixo de 600 ms após a última queda aceita.
+Verificação temporária de execução: entradas em 0, 100, 200, 300, 400, 500
+e 610 ms agora fixam duas peças; antes fixavam somente uma. Conferidos
+bloqueio imediato, prazo não renovado, pausa, estado fora de PLAYING e
+revanche. Nenhum arquivo de teste foi adicionado. compileall e diff --check
+conferem sintaxe e whitespace; teclado físico continua sem validação aqui.
