@@ -61,6 +61,11 @@ renova o prazo. Após resultado, a física para e aparece o vencedor/motivo.
 Há 10 s para revanche: ambos devem pressionar R no multiplayer. No treino,
 R reinicia diretamente. Sem revanche, a interface retorna ao menu.
 
+Espaço tem proteção contra repetição: uma nova queda exige 600 ms sem outro
+Espaço. Movimento e rotação continuam disponíveis durante essa trava. Como
+o terminal não informa soltura de tecla, toques muito rápidos também são
+bloqueados; detalhes e limites estão nas regras.
+
 O motor usa spins, combos, B2B e kicks agressivos para encaixes diagonais e
 sob saliências. A posição final sempre respeita blocos e limites; as regras
 são uma adaptação própria, sem promessa de equivalência ao SRS+ do TETR.IO.

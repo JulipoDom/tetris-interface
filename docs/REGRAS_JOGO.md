@@ -126,3 +126,16 @@ Mais de 20 s sem tecla durante PLAYING causa derrota INACTIVITY. Qualquer
 tecla renova o prazo; resize não conta. Espera e preparação não contam.
 ./client --no-timeout desativa somente essa regra, inclusive em novas rodadas;
 KEEPALIVE e timeout de rede continuam independentes.
+
+## Proteção da queda instantânea
+
+Espaço fixa somente uma peça por sequência de entradas: novas quedas exigem
+600 ms sem receber outro Espaço. Repetições bloqueadas renovam o intervalo,
+inclusive ao pausar ou trocar de rodada por revanche. Movimento, rotação e
+reserva continuam disponíveis sem liberar a trava.
+
+Curses não fornece eventos de soltura da tecla. Por isso a liberação é
+inferida pelo silêncio; toques separados por menos de 600 ms também são
+bloqueados. Teclados configurados com atraso inicial de repetição superior
+a 600 ms podem gerar outra queda. É uma adaptação para terminal, sem
+equivalência prometida ao controle por keydown/keyup do TETR.IO.

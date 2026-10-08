@@ -33,3 +33,13 @@ revanche, inatividade e falhas. O roteiro está em STATUS_TCP.md.
 
 A publicação usa o conector GitHub porque o SSH deste ambiente não consegue
 resolver github.com. Os remotos SSH locais foram preservados.
+
+## Conferência da proteção de queda instantânea
+
+Executada uma verificação temporária de App/Engine, sem adicionar arquivos
+de testes ao repositório. Antes da correção, uma entrada seguida de três
+repetições fixava 16 blocos. Após a correção, a sequência prolongada manteve
+apenas 4; após silêncio superior a 600 ms, outra peça pôde ser fixada.
+Movimento, rotação, reserva e pausa foram conferidos. compileall e
+git diff --check passaram. Ainda falta conferir o teclado físico no terminal;
+limites de inferência de soltura estão em REGRAS_JOGO.md.

@@ -34,3 +34,11 @@ Não foi demonstrada aqui uma partida TCP real entre duas máquinas.
 O comando hostname deste ambiente não oferece -I; ip também não consegue
 consultar interfaces no sandbox. A detecção fora dele depende dos utilitários
 da máquina. As tabelas de rotação são próprias, inspiradas no TETR.IO.
+
+## Proteção do Espaço
+
+App.action agora filtra repetições de queda instantânea com intervalo de
+600 ms desde a última entrada de Espaço, renovado mesmo quando bloqueado.
+Não altera física, atraso de fixação nem TVP/1. O roteiro manual deve incluir
+segurar Espaço e depois soltá-lo por mais de 600 ms antes da próxima queda.
+Veja limites em REGRAS_JOGO.md.
