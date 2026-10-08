@@ -28,6 +28,7 @@ class PieceKind(IntEnum):
 class LossReason(str, Enum):
     SPAWN = "SPAWN"
     OVERFLOW = "OVERFLOW"
+    INACTIVITY = "INACTIVITY"
 
 
 class Result(str, Enum):

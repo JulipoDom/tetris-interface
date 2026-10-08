@@ -1,3 +1,5 @@
+"""Codec TVP/1 compartilhado: valida campos e delimita o fluxo TCP."""
+
 import re
 
 from .models import MessageType
@@ -7,16 +9,17 @@ LIMITE_LINHA = 512
 PADROES_CAMPOS = {
     MessageType.HELLO: (r"[A-Za-z0-9_]{1,20}",),
     MessageType.MATCH: (r"[A-Za-z0-9_]{1,20}",),
-    MessageType.READY: (r"PLAYER|GO",),
+    MessageType.READY: (r"PLAYER|GO|REMATCH",),
     MessageType.BOARD: (r"[0-8]{200}",),
     MessageType.ATTACK: (r"1|2|4",),
-    MessageType.KO: (r"SPAWN|OVERFLOW",),
+    MessageType.KO: (r"SPAWN|OVERFLOW|INACTIVITY",),
     MessageType.GAMEOVER: (r"WIN|LOSE|CANCEL", r"KO|DISCONNECT|TIMEOUT|PROTOCOL|SERVER_STOP"),
     MessageType.KEEPALIVE: (),
 }
 
 
 def _validar_campos(tipo_mensagem: MessageType, campos: tuple[str, ...]) -> None:
+    """Confere campos da gramática; direção e fase pertencem aos adaptadores."""
     if not isinstance(tipo_mensagem, MessageType):
         raise TypeError("Tipo da mensagem deve ser MessageType")
     if not isinstance(campos, tuple) or any(not isinstance(campo, str) for campo in campos):
@@ -29,11 +32,13 @@ def _validar_campos(tipo_mensagem: MessageType, campos: tuple[str, ...]) -> None
 
 
 def encode(tipo_mensagem: MessageType, campos: tuple[str, ...]) -> bytes:
+    """Produz um frame ASCII completo, incluindo o delimitador LF."""
     _validar_campos(tipo_mensagem, campos)
     return ("|".join(("TVP/1", tipo_mensagem.value, *campos)) + "\n").encode("ascii")
 
 
 def parse(linha: bytes) -> tuple[MessageType, tuple[str, ...]]:
+    """Interpreta somente uma linha completa, sem aceitar campos adicionais."""
     if not isinstance(linha, bytes):
         raise TypeError("Linha deve ser bytes")
     if len(linha) > LIMITE_LINHA or not linha.endswith(b"\n") or linha.count(b"\n") != 1:
@@ -54,11 +59,15 @@ def parse(linha: bytes) -> tuple[MessageType, tuple[str, ...]]:
 
 
 class Framer:
+    """Conserva fragmentos e extrai todos os frames completos de cada lote."""
+
     def __init__(self) -> None:
+        """Prepara o acumulador limitado; erro de framing invalida a conexão."""
         self._fragmento = bytearray()
         self._invalido = False
 
     def feed(self, dados: bytes) -> list[bytes]:
+        """Separa frames por LF sem depender dos limites de chamadas recv."""
         if not isinstance(dados, bytes):
             raise TypeError("Dados devem ser bytes")
         if self._invalido:

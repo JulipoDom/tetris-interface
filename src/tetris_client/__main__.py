@@ -9,12 +9,14 @@ from .session import validate_nickname
 
 # Lê argumentos, abre o menu padrão e informa falhas de execução.
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Tetris Versus: treino e simulação; rede pendente")
+    parser = argparse.ArgumentParser(description="Tetris Versus: treino, simulação e multiplayer TCP")
     parser.add_argument("--mode", choices=("local", "simulated", "network"),
                         help="Sem este argumento, exibir menu")
     parser.add_argument("--nickname", default="Jogador", help="Apelido ASCII de 1 a 20 caracteres")
     parser.add_argument("--host", default=DEFAULT_HOST, help="Endereço do servidor TCP")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Porta do servidor TCP")
+    parser.add_argument("--no-timeout", action="store_true",
+                        help="Desativa a derrota por 20 segundos sem teclas")
     args = parser.parse_args()
     try:
         validate_nickname(args.nickname)
@@ -30,10 +32,8 @@ def main() -> int:
                         format="%(asctime)s %(levelname)s %(message)s")
     try:
         from .ui import run
-        run(args.mode, args.nickname, host=args.host, port=args.port)
-    except NotImplementedError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
+        run(args.mode, args.nickname, host=args.host, port=args.port,
+            no_timeout=args.no_timeout)
     except KeyboardInterrupt:
         return 0
     except Exception as exc:

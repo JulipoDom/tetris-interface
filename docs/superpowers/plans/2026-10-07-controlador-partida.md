@@ -1,3 +1,8 @@
+> Registro histórico: descreve o planejamento ou a validação na data do arquivo.
+> O estado atual está em [STATUS_TCP.md](../../STATUS_TCP.md). Os arquivos de
+> testes automatizados foram removidos em 08/10/2026; comandos/contagens abaixo
+> permanecem como evidência histórica, sem representar uma suíte distribuída.
+
 # Controlador da partida única — plano de implementação
 
 > Execução sequencial com as skills executing-plans, test-driven-development e verification-before-completion. Sem agentes, worktrees ou commits adicionais.

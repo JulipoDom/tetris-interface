@@ -50,19 +50,23 @@ class _Participante:
 
 class ControladorPartida:
     def __init__(self) -> None:
+        """Prepara duas posições e uma decisão ainda inexistente."""
         self._participantes: dict[Hashable, _Participante] = {}
         self._fase = FasePartida.AGUARDANDO
         self._decisao: DecisaoPartida | None = None
 
     @property
     def fase(self) -> FasePartida:
+        """Expõe a fase atual sem permitir alteração externa."""
         return self._fase
 
     @property
     def decisao(self) -> DecisaoPartida | None:
+        """Expõe o resultado imutável confirmado pelo controlador."""
         return self._decisao
 
     def admitir(self, conexao: Hashable) -> list[AcaoServidor]:
+        """Reserva até duas conexões e recusa participantes adicionais."""
         if self._fase == FasePartida.ENCERRADA:
             return [FecharConexao(conexao)]
         if conexao in self._participantes:
@@ -74,6 +78,7 @@ class ControladorPartida:
 
     def receber(self, conexao: Hashable, tipo_mensagem: MessageType,
                 campos: tuple[str, ...]) -> list[AcaoServidor]:
+        """Valida a mensagem e despacha somente operações permitidas na fase atual."""
         participante = self._participantes.get(conexao)
         if self._fase == FasePartida.ENCERRADA or participante is None:
             return []
@@ -107,9 +112,11 @@ class ControladorPartida:
         return self.falhar(conexao, EndReason.PROTOCOL)
 
     def desconectar(self, conexao: Hashable) -> list[AcaoServidor]:
+        """Traduz a saída do participante em uma falha de conexão."""
         return self.falhar(conexao, EndReason.DISCONNECT)
 
     def falhar(self, conexao: Hashable, motivo: EndReason) -> list[AcaoServidor]:
+        """Remove uma conexão não identificada ou encerra a rodada por falha."""
         if not isinstance(motivo, EndReason) or motivo not in (
             EndReason.DISCONNECT, EndReason.TIMEOUT, EndReason.PROTOCOL,
         ):
@@ -124,11 +131,13 @@ class ControladorPartida:
         return [FecharConexao(conexao), *self._concluir(motivo, participante)]
 
     def parar(self) -> list[AcaoServidor]:
+        """Cancela a rodada sem sobrescrever uma decisão anterior."""
         if self._fase == FasePartida.ENCERRADA:
             return []
         return self._concluir(EndReason.SERVER_STOP)
 
     def _preparar(self) -> list[AcaoServidor]:
+        """Informa os apelidos quando as duas identificações estão completas."""
         if len(self._participantes) != 2 or any(
             participante.apelido is None for participante in self._participantes.values()
         ):
@@ -142,6 +151,7 @@ class ControladorPartida:
 
     def _concluir(self, motivo: EndReason,
                   perdedor: _Participante | None = None) -> list[AcaoServidor]:
+        """Grava a decisão antes de notificar os participantes conectados."""
         resultados = []
         for participante in self._participantes.values():
             if participante.apelido is None:

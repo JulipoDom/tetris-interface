@@ -23,6 +23,8 @@ class Session(Protocol):
     def start(self, nickname: str) -> None: ...
     # Registra prontidão; a sessão simulada agenda uma autorização separada.
     def ready(self) -> None: ...
+    # Solicita revanche na mesma conexão após o resultado.
+    def rematch(self) -> None: ...
     # Oferece uma cópia dos blocos fixos para envio ao oponente.
     def offer_board(self, board: BoardSnapshot) -> None: ...
     # Informa a quantidade de lixo produzida pela jogada local.
@@ -42,7 +44,7 @@ class HelloOffered:
 
 @dataclass(frozen=True)
 class ReadyOffered:
-    pass
+    choice: str = 'PLAYER'
 
 
 @dataclass(frozen=True)
@@ -106,6 +108,12 @@ class FakeSession:
             if self.demo:
                 self.inject()
                 self.inject(StartAuthorized())
+
+    def rematch(self) -> None:
+        """Registra a escolha; a demonstração simula o aceite do oponente."""
+        self.outgoing.append(ReadyOffered('REMATCH'))
+        if self.demo:
+            self.inject(StartAuthorized())
 
     # Oferece uma cópia dos blocos fixos para envio ao oponente.
     def offer_board(self, board: BoardSnapshot) -> None:

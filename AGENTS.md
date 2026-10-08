@@ -31,23 +31,20 @@ Git worktree skills only when authorized and supported by the environment.
   `01-boilerplate-interface.md` when changing game rules or architecture.
 - Python 3.12+, standard library at runtime, `curses` TUI on Linux/WSL.
 - `engine.py` must not import curses, socket, or session adapters.
-- Two players and one match; exactly eight message types. No rooms,
+- Two players and one active match at a time; the server accepts sequential matches after cleanup. Exactly eight message types. No rooms,
   matchmaking, accounts, rankings, or match identifiers.
-- Network transport methods remain `TODO[EP-REDE]` stubs raising
-  `NotImplementedError` until real networking is explicitly requested.
-  Shared TVP/1 encoding, parsing, and framing were explicitly authorized
-  and implemented on 2026-10-07; preserve their functional tests.
-  Network mode must never fall back to FakeSession.
-- Preserve the existing thread/queue scaffold in `network.py`. The main thread
-  owns Engine and curses; `_start_worker`, `_enqueue`, `_publish`, `poll`, and
-  `close` coordinate threads and objects only. TCP, outgoing byte buffers,
-  and network timers remain `TODO[EP-REDE]` implementation points.
+- Network transport and shared TVP/1 encoding, parsing and framing are implemented;
+  preserve the wire contract; automated test files were removed at the owner’s request. Network mode must never fall back to FakeSession.
+  `docs/PROTOCOLO_TCP.md` is the detailed wire contract.
+- Preserve the thread/queue structure in `network.py`. The main thread owns
+  Engine and curses; the worker owns the socket, outgoing bytes and network timers.
+  `_start_worker`, `_enqueue`, `_publish`, `poll`, and `close` coordinate both threads.
 - Keep comments and docstrings in project-owned Python files in Portuguese.
   Preserve official API names, identifiers, and vendored third-party sources.
 - Preserve attack → board snapshot → local defeat when publishing a lock.
 - Use injectable clocks and separate piece/garbage RNGs for deterministic tests.
-- Run `.venv/bin/python -m unittest discover -s tests` after behavior changes.
-  Without an installed environment use
-  `PYTHONPATH=src python3 -m unittest discover -s tests`.
+- There is no distributed automated test suite after the owner-requested cleanup.
+  Verify syntax with `python3 -m compileall -q src`, check CLI help and follow
+  the manual scenario in `docs/STATUS_TCP.md`; record limitations honestly.
 - Keep the pinned third-party skills and license intact. Record any deliberate
   update in `.superpowers/README.md` and the provenance manifest.

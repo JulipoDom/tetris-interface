@@ -10,11 +10,13 @@ from tetris_shared.models import (
     LossReason, PieceKind,
 )
 from tetris_shared.rules import (
-    ATTACK_BY_LINES, GRAVITY_SECONDS, HEIGHT, INITIAL_LOCK_DELAY_SECONDS,
+    GRAVITY_SECONDS, HEIGHT, INITIAL_LOCK_DELAY_SECONDS,
     LOCK_DELAY_INTERVAL_SECONDS, LOCK_DELAY_REDUCTION_SECONDS, MIN_LOCK_DELAY_SECONDS,
     MAX_CATCH_UP_STEPS,
-    MAX_GARBAGE_PER_LOCK, MAX_PENDING_GARBAGE, SCORE_BY_LINES, WIDTH,
+    MAX_GARBAGE_PER_LOCK, MAX_PENDING_GARBAGE, WIDTH,
 )
+from .rotation import kick_offsets, rotated_cells
+from .scoring import ClearResult, detect_spin, evaluate_clear, split_attack
 
 SHAPES = {
     PieceKind.I: (4, ((0, 1), (1, 1), (2, 1), (3, 1))),
@@ -53,6 +55,10 @@ class Engine:
         self.clock = clock
         self.board = [[0] * WIDTH for _ in range(HEIGHT)]
         self.score = 0
+        self.combo = -1
+        self.back_to_back = 0
+        self.last_clear: ClearResult | None = None
+        self._last_rotation = False
         self.pending_garbage = 0
         self.active: Piece | None = None
         self.held_kind: PieceKind | None = None
@@ -130,6 +136,7 @@ class Engine:
     # Gera a peça seguinte e detecta derrota por nascimento bloqueado.
     def _spawn(self, kind: PieceKind | None = None) -> None:
         self._lock_deadline = None
+        self._last_rotation = False
         if kind is None:
             kind = self.next_kind
             self.next_kind = self._draw()
@@ -193,24 +200,26 @@ class Engine:
         if self.running and self._paused_at is None and self.active:
             p = self.active
             candidate = Piece(p.kind, p.x + dx, p.y, p.cells)
-            if self._valid(candidate):
+            if dx != 0 and self._valid(candidate):
                 self.active = candidate
+                self._last_rotation = False
                 self._touch_ground()
 
-    # Gira em quartos de volta e valida apenas a posição final, sem deslocamentos corretivos.
+    # Testa o giro e seus kicks na ordem definida, preservando o prazo de fixação.
     def rotate(self, turns: int = 1) -> None:
         if (not self.running or self._paused_at is not None or self.active is None
-                or self.active.kind == PieceKind.O):
+                or self.active.kind == PieceKind.O or turns % 4 == 0):
             return
         p = self.active
         size = SHAPES[p.kind][0]
-        cells = p.cells
-        for _ in range(turns % 4):
-            cells = tuple((size - 1 - y, x) for x, y in cells)
-        candidate = Piece(p.kind, p.x, p.y, cells)
-        if self._valid(candidate):
-            self.active = candidate
-            self._touch_ground()
+        cells = rotated_cells(p.cells, size, turns)
+        for dx, dy in kick_offsets(p.kind, turns):
+            candidate = Piece(p.kind, p.x + dx, p.y + dy, cells)
+            if self._valid(candidate):
+                self.active = candidate
+                self._last_rotation = True
+                self._touch_ground()
+                return
 
     # Tenta descer uma linha e inicia a espera quando a peça apoia.
     def soft_drop(self) -> list[EngineEvent]:
@@ -220,6 +229,7 @@ class Engine:
         candidate = Piece(p.kind, p.x, p.y + 1, p.cells)
         if self._valid(candidate):
             self.active = candidate
+            self._last_rotation = False
         self._touch_ground()
         return []
 
@@ -233,6 +243,7 @@ class Engine:
             if not self._valid(candidate):
                 return self._lock()
             self.active = candidate
+            self._last_rotation = False
 
     # Atualiza a gravidade e fixa peças cujo prazo de apoio terminou.
     def tick(self) -> list[EngineEvent]:
@@ -258,6 +269,7 @@ class Engine:
     # Fixa, limpa linhas, aplica lixo e produz ataque, tabuleiro e derrota.
     def _lock(self) -> list[EngineEvent]:
         assert self.active is not None
+        spin = detect_spin(self.active, self.board, self._last_rotation)
         pending_before = min(self.pending_garbage, MAX_GARBAGE_PER_LOCK)
         for x, y in self.active.occupied():
             self.board[y][x] = int(self.active.kind)
@@ -265,11 +277,12 @@ class Engine:
         survivors = [row for row in self.board if not all(row)]
         cleared = HEIGHT - len(survivors)
         self.board = [[0] * WIDTH for _ in range(cleared)] + survivors
-        self.score += SCORE_BY_LINES[cleared]
-        events: list[EngineEvent] = []
-        attack = ATTACK_BY_LINES[cleared]
-        if attack:
-            events.append(AttackProduced(attack))
+        self.last_clear = evaluate_clear(spin, cleared, self.combo, self.back_to_back)
+        self.combo = self.last_clear.combo
+        self.back_to_back = self.last_clear.back_to_back
+        self.score += self.last_clear.score
+        events: list[EngineEvent] = [AttackProduced(amount)
+                                   for amount in split_attack(self.last_clear.attack)]
         overflow = False
         for _ in range(pending_before):
             overflow |= any(self.board.pop(0))

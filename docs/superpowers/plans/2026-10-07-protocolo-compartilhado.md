@@ -1,3 +1,8 @@
+> Registro histórico: descreve o planejamento ou a validação na data do arquivo.
+> O estado atual está em [STATUS_TCP.md](../../STATUS_TCP.md). Os arquivos de
+> testes automatizados foram removidos em 08/10/2026; comandos/contagens abaixo
+> permanecem como evidência histórica, sem representar uma suíte distribuída.
+
 # Protocolo compartilhado TVP/1 — plano de implementação
 
 **Objetivo:** implementar codec e delimitação conforme `00-contexto-geral.md`, seção 7, e `IMPLEMENTATION.md`.

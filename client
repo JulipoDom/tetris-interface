@@ -1,0 +1,6 @@
+#!/bin/sh
+# Abre o menu do cliente sem precisar instalar o pacote.
+set -eu
+cd -- "$(dirname -- "$0")"
+export PYTHONPATH="$PWD/src"
+exec python3 -m tetris_client "$@"
